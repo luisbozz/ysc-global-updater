@@ -1,0 +1,320 @@
+; customfuncs payload for fm_race_creator  (built for the OLD game version)
+; injected at sacrificial function 0x3F4A98 (anchor 2D 04 3A 00 00 38 03)
+; natives are symbolic (@NS::NAME); external R* CALLs are old-build
+; addresses -- run repair_scrpatches.py to migrate to a new version.
+; verified: re-assembles byte-identical to scrpatches.json.
+
+fn0:
+  ENTER 0, 3                                 ; 0x3F4A98  2D 00 03 00 00
+  GLOBAL_U24_LOAD 1826920                    ; 0x3F4A9D  62 68 E0 1B
+  PUSH_CONST_0                               ; 0x3F4AA1  71
+  NOP                                        ; 0x3F4AA2  00
+  IS_BIT_SET                                 ; 0x3F4AA3  82
+  JZ L_3F4AAB                                ; 0x3F4AA4  56 04 00
+  CALL @fn1                                  ; 0x3F4AA7  5D E6 4A 3F
+L_3F4AAB:
+  GLOBAL_U24_LOAD 1826920                    ; 0x3F4AAB  62 68 E0 1B
+  PUSH_CONST_1                               ; 0x3F4AAF  72
+  NOP                                        ; 0x3F4AB0  00
+  IS_BIT_SET                                 ; 0x3F4AB1  82
+  JZ L_3F4AB9                                ; 0x3F4AB2  56 04 00
+  CALL @fn3                                  ; 0x3F4AB5  5D 89 4B 3F
+L_3F4AB9:
+  GLOBAL_U24_LOAD 1826920                    ; 0x3F4AB9  62 68 E0 1B
+  PUSH_CONST_2                               ; 0x3F4ABD  73
+  NOP                                        ; 0x3F4ABE  00
+  IS_BIT_SET                                 ; 0x3F4ABF  82
+  JZ L_3F4AC7                                ; 0x3F4AC0  56 04 00
+  CALL @fn4                                  ; 0x3F4AC3  5D 5D 4C 3F
+L_3F4AC7:
+  GLOBAL_U24_LOAD 1826920                    ; 0x3F4AC7  62 68 E0 1B
+  PUSH_CONST_3                               ; 0x3F4ACB  74
+  NOP                                        ; 0x3F4ACC  00
+  IS_BIT_SET                                 ; 0x3F4ACD  82
+  JZ L_3F4AD5                                ; 0x3F4ACE  56 04 00
+  CALL @fn5                                  ; 0x3F4AD1  5D 08 4D 3F
+L_3F4AD5:
+  GLOBAL_U24_LOAD 1826920                    ; 0x3F4AD5  62 68 E0 1B
+  PUSH_CONST_4                               ; 0x3F4AD9  75
+  NOP                                        ; 0x3F4ADA  00
+  IS_BIT_SET                                 ; 0x3F4ADB  82
+  JZ L_3F4AE3                                ; 0x3F4ADC  56 04 00
+  CALL @fn6                                  ; 0x3F4ADF  5D 3B 4D 3F
+L_3F4AE3:
+  LEAVE 0, 0                                 ; 0x3F4AE3  2E 00 00
+fn1:
+  ENTER 0, 2                                 ; 0x3F4AE6  2D 00 02 00 00
+  GLOBAL_U24_LOAD 1826922                    ; 0x3F4AEB  62 6A E0 1B
+  NATIVE 1, 1, @STREAMING::IS_MODEL_VALID    ; 0x3F4AEF  2C 05 03 7F
+  INOT                                       ; 0x3F4AF3  06
+  JZ L_3F4AFA                                ; 0x3F4AF4  56 03 00
+  LEAVE 0, 0                                 ; 0x3F4AF7  2E 00 00
+L_3F4AFA:
+  GLOBAL_U24_LOAD 1826922                    ; 0x3F4AFA  62 6A E0 1B
+  GLOBAL_U24 1826923                         ; 0x3F4AFE  61 6B E0 1B
+  GLOBAL_U24 1826926                         ; 0x3F4B02  61 6E E0 1B
+  NATIVE 3, 0, @MISC::GET_MODEL_DIMENSIONS   ; 0x3F4B06  2C 0C 02 63
+  LEAVE 0, 0                                 ; 0x3F4B0A  2E 00 00
+fn2:
+  ENTER 2, 3                                 ; 0x3F4B0D  2D 02 03 00 00
+  LOCAL_U8_LOAD 1                            ; 0x3F4B12  38 01
+  PUSH_CONST_M1                              ; 0x3F4B14  70
+  INE_JZ L_3F4B50                            ; 0x3F4B15  58 38 00
+  LOCAL_U8_LOAD 1                            ; 0x3F4B18  38 01
+  PUSH_CONST_0                               ; 0x3F4B1A  71
+  IEQ_JZ L_3F4B26                            ; 0x3F4B1B  57 08 00
+  PUSH_CONST_U8 15                           ; 0x3F4B1E  25 0F
+  LEAVE 2, 1                                 ; 0x3F4B20  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B23  55 5F 00
+L_3F4B26:
+  LOCAL_U8_LOAD 1                            ; 0x3F4B26  38 01
+  PUSH_CONST_1                               ; 0x3F4B28  72
+  IEQ_JZ L_3F4B34                            ; 0x3F4B29  57 08 00
+  PUSH_CONST_U8 21                           ; 0x3F4B2C  25 15
+  LEAVE 2, 1                                 ; 0x3F4B2E  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B31  55 51 00
+L_3F4B34:
+  LOCAL_U8_LOAD 1                            ; 0x3F4B34  38 01
+  PUSH_CONST_2                               ; 0x3F4B36  73
+  IEQ_JZ L_3F4B42                            ; 0x3F4B37  57 08 00
+  PUSH_CONST_U8 24                           ; 0x3F4B3A  25 18
+  LEAVE 2, 1                                 ; 0x3F4B3C  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B3F  55 43 00
+L_3F4B42:
+  LOCAL_U8_LOAD 1                            ; 0x3F4B42  38 01
+  PUSH_CONST_3                               ; 0x3F4B44  74
+  IEQ_JZ L_3F4B4D                            ; 0x3F4B45  57 05 00
+  PUSH_CONST_U8 18                           ; 0x3F4B48  25 12
+  LEAVE 2, 1                                 ; 0x3F4B4A  2E 02 01
+L_3F4B4D:
+  J L_3F4B85                                 ; 0x3F4B4D  55 35 00
+L_3F4B50:
+  LOCAL_U8_LOAD 0                            ; 0x3F4B50  38 00
+  PUSH_CONST_0                               ; 0x3F4B52  71
+  IEQ_JZ L_3F4B5E                            ; 0x3F4B53  57 08 00
+  PUSH_CONST_U8 52                           ; 0x3F4B56  25 34
+  LEAVE 2, 1                                 ; 0x3F4B58  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B5B  55 27 00
+L_3F4B5E:
+  LOCAL_U8_LOAD 0                            ; 0x3F4B5E  38 00
+  PUSH_CONST_1                               ; 0x3F4B60  72
+  IEQ_JZ L_3F4B6C                            ; 0x3F4B61  57 08 00
+  PUSH_CONST_U8 15                           ; 0x3F4B64  25 0F
+  LEAVE 2, 1                                 ; 0x3F4B66  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B69  55 19 00
+L_3F4B6C:
+  LOCAL_U8_LOAD 0                            ; 0x3F4B6C  38 00
+  PUSH_CONST_2                               ; 0x3F4B6E  73
+  IEQ_JZ L_3F4B7A                            ; 0x3F4B6F  57 08 00
+  PUSH_CONST_U8 20                           ; 0x3F4B72  25 14
+  LEAVE 2, 1                                 ; 0x3F4B74  2E 02 01
+  J L_3F4B85                                 ; 0x3F4B77  55 0B 00
+L_3F4B7A:
+  LOCAL_U8_LOAD 0                            ; 0x3F4B7A  38 00
+  PUSH_CONST_3                               ; 0x3F4B7C  74
+  IEQ_JZ L_3F4B85                            ; 0x3F4B7D  57 05 00
+  PUSH_CONST_U8 29                           ; 0x3F4B80  25 1D
+  LEAVE 2, 1                                 ; 0x3F4B82  2E 02 01
+L_3F4B85:
+  PUSH_CONST_6                               ; 0x3F4B85  77
+  LEAVE 2, 1                                 ; 0x3F4B86  2E 02 01
+fn3:
+  ENTER 0, 8                                 ; 0x3F4B89  2D 00 08 00 00
+  PUSH_CONST_0                               ; 0x3F4B8E  71
+  LOCAL_U8_STORE 2                           ; 0x3F4B8F  39 02
+L_3F4B91:
+  LOCAL_U8_LOAD 2                            ; 0x3F4B91  38 02
+  PUSH_CONST_3                               ; 0x3F4B93  74
+  ILE_JZ L_3F4C5A                            ; 0x3F4B94  5C C3 00
+  LOCAL_U8_LOAD 2                            ; 0x3F4B97  38 02
+  LOCAL_U8_LOAD 2                            ; 0x3F4B99  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4B9B  61 00 00 48
+  PUSH_CONST_U24 125909                      ; 0x3F4B9F  64 D5 EB 01
+  IOFFSET                                    ; 0x3F4BA3  3F
+  ARRAY_U8_LOAD 1                            ; 0x3F4BA4  35 01
+  CALL @fn2                                  ; 0x3F4BA6  5D 0D 4B 3F
+  LOCAL_U8 4                                 ; 0x3F4BAA  37 04
+  LOCAL_U8 5                                 ; 0x3F4BAC  37 05
+  LOCAL_U8 6                                 ; 0x3F4BAE  37 06
+  LOCAL_U8 7                                 ; 0x3F4BB0  37 07
+  NATIVE 5, 0, @HUD::GET_HUD_COLOUR          ; 0x3F4BB2  2C 14 00 6F
+  PUSH_CONST_0                               ; 0x3F4BB6  71
+  LOCAL_U8_STORE 3                           ; 0x3F4BB7  39 03
+L_3F4BB9:
+  LOCAL_U8_LOAD 3                            ; 0x3F4BB9  38 03
+  PUSH_CONST_U8 16                           ; 0x3F4BBB  25 10
+  ILE_JZ L_3F4C51                            ; 0x3F4BBD  5C 91 00
+  PUSH_CONST_3                               ; 0x3F4BC0  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4BC1  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4BC3  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4BC5  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4BC9  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4BCC  49 45 69
+  IOFFSET_S16 3152                           ; 0x3F4BCF  46 50 0C
+  ARRAY_U8 36                                ; 0x3F4BD2  34 24
+  IOFFSET_U8 16                              ; 0x3F4BD4  40 10
+  LOAD_N                                     ; 0x3F4BD6  32
+  PUSH_CONST_3                               ; 0x3F4BD7  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4BD8  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4BDA  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4BDC  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4BE0  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4BE3  49 45 69
+  IOFFSET_S16 3152                           ; 0x3F4BE6  46 50 0C
+  ARRAY_U8 36                                ; 0x3F4BE9  34 24
+  IOFFSET_U8 19                              ; 0x3F4BEB  40 13
+  LOAD_N                                     ; 0x3F4BED  32
+  LOCAL_U8_LOAD 3                            ; 0x3F4BEE  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4BF0  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4BF2  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4BF6  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4BF9  49 45 69
+  IOFFSET_S16 3152                           ; 0x3F4BFC  46 50 0C
+  ARRAY_U8 36                                ; 0x3F4BFF  34 24
+  IOFFSET_U8_LOAD 23                         ; 0x3F4C01  41 17
+  LOCAL_U8_LOAD 4                            ; 0x3F4C03  38 04
+  LOCAL_U8_LOAD 5                            ; 0x3F4C05  38 05
+  LOCAL_U8_LOAD 6                            ; 0x3F4C07  38 06
+  PUSH_CONST_U8 98                           ; 0x3F4C09  25 62
+  PUSH_CONST_1                               ; 0x3F4C0B  72
+  PUSH_CONST_1                               ; 0x3F4C0C  72
+  CALL 0x3DA5E4                              ; 0x3F4C0D  5D E4 A5 3D
+  PUSH_CONST_3                               ; 0x3F4C11  74
+  PUSH_CONST_3                               ; 0x3F4C12  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4C13  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4C15  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4C17  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4C1B  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4C1E  49 45 69
+  IOFFSET_S16 3152                           ; 0x3F4C21  46 50 0C
+  ARRAY_U8 36                                ; 0x3F4C24  34 24
+  IOFFSET_U8 16                              ; 0x3F4C26  40 10
+  LOAD_N                                     ; 0x3F4C28  32
+  PUSH_CONST_3                               ; 0x3F4C29  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4C2A  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4C2C  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4C2E  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4C32  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4C35  49 45 69
+  IOFFSET_S16 3152                           ; 0x3F4C38  46 50 0C
+  ARRAY_U8 36                                ; 0x3F4C3B  34 24
+  IOFFSET_U8 19                              ; 0x3F4C3D  40 13
+  LOAD_N                                     ; 0x3F4C3F  32
+  CALL 0x39A50E                              ; 0x3F4C40  5D 0E A5 39
+  CALL 0x3DA42F                              ; 0x3F4C44  5D 2F A4 3D
+  LOCAL_U8_LOAD 3                            ; 0x3F4C48  38 03
+  IADD_U8 1                                  ; 0x3F4C4A  3D 01
+  LOCAL_U8_STORE 3                           ; 0x3F4C4C  39 03
+  J L_3F4BB9                                 ; 0x3F4C4E  55 68 FF
+L_3F4C51:
+  LOCAL_U8_LOAD 2                            ; 0x3F4C51  38 02
+  IADD_U8 1                                  ; 0x3F4C53  3D 01
+  LOCAL_U8_STORE 2                           ; 0x3F4C55  39 02
+  J L_3F4B91                                 ; 0x3F4C57  55 37 FF
+L_3F4C5A:
+  LEAVE 0, 0                                 ; 0x3F4C5A  2E 00 00
+fn4:
+  ENTER 0, 8                                 ; 0x3F4C5D  2D 00 08 00 00
+  PUSH_CONST_0                               ; 0x3F4C62  71
+  LOCAL_U8_STORE 2                           ; 0x3F4C63  39 02
+L_3F4C65:
+  LOCAL_U8_LOAD 2                            ; 0x3F4C65  38 02
+  PUSH_CONST_3                               ; 0x3F4C67  74
+  ILE_JZ L_3F4D05                            ; 0x3F4C68  5C 9A 00
+  PUSH_CONST_0                               ; 0x3F4C6B  71
+  LOCAL_U8_STORE 3                           ; 0x3F4C6C  39 03
+L_3F4C6E:
+  LOCAL_U8_LOAD 3                            ; 0x3F4C6E  38 03
+  PUSH_CONST_U8 16                           ; 0x3F4C70  25 10
+  ILE_JZ L_3F4CFC                            ; 0x3F4C72  5C 87 00
+  PUSH_CONST_3                               ; 0x3F4C75  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4C76  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4C78  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4C7A  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4C7E  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4C81  49 45 69
+  IOFFSET_S16 6789                           ; 0x3F4C84  46 85 1A
+  ARRAY_U8 3                                 ; 0x3F4C87  34 03
+  LOAD_N                                     ; 0x3F4C89  32
+  PUSH_CONST_3                               ; 0x3F4C8A  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4C8B  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4C8D  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4C8F  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4C93  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4C96  49 45 69
+  IOFFSET_S16 6841                           ; 0x3F4C99  46 B9 1A
+  ARRAY_U8 3                                 ; 0x3F4C9C  34 03
+  LOAD_N                                     ; 0x3F4C9E  32
+  LOCAL_U8_LOAD 3                            ; 0x3F4C9F  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4CA1  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4CA3  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4CA7  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4CAA  49 45 69
+  IOFFSET_S16 6893                           ; 0x3F4CAD  46 ED 1A
+  ARRAY_U8_LOAD 1                            ; 0x3F4CB0  35 01
+  PUSH_CONST_U8 255                          ; 0x3F4CB2  25 FF
+  PUSH_CONST_U8 0                            ; 0x3F4CB4  25 00
+  PUSH_CONST_U8 0                            ; 0x3F4CB6  25 00
+  PUSH_CONST_U8 98                           ; 0x3F4CB8  25 62
+  PUSH_CONST_1                               ; 0x3F4CBA  72
+  PUSH_CONST_1                               ; 0x3F4CBB  72
+  CALL 0x3DA5E4                              ; 0x3F4CBC  5D E4 A5 3D
+  PUSH_CONST_1                               ; 0x3F4CC0  72
+  PUSH_CONST_3                               ; 0x3F4CC1  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4CC2  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4CC4  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4CC6  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4CCA  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4CCD  49 45 69
+  IOFFSET_S16 6789                           ; 0x3F4CD0  46 85 1A
+  ARRAY_U8 3                                 ; 0x3F4CD3  34 03
+  LOAD_N                                     ; 0x3F4CD5  32
+  PUSH_CONST_3                               ; 0x3F4CD6  74
+  LOCAL_U8_LOAD 3                            ; 0x3F4CD7  38 03
+  LOCAL_U8_LOAD 2                            ; 0x3F4CD9  38 02
+  GLOBAL_U24 4718592                         ; 0x3F4CDB  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x3F4CDF  46 15 0E
+  ARRAY_U16 26949                            ; 0x3F4CE2  49 45 69
+  IOFFSET_S16 6841                           ; 0x3F4CE5  46 B9 1A
+  ARRAY_U8 3                                 ; 0x3F4CE8  34 03
+  LOAD_N                                     ; 0x3F4CEA  32
+  CALL 0x39A50E                              ; 0x3F4CEB  5D 0E A5 39
+  CALL 0x3DA42F                              ; 0x3F4CEF  5D 2F A4 3D
+  LOCAL_U8_LOAD 3                            ; 0x3F4CF3  38 03
+  IADD_U8 1                                  ; 0x3F4CF5  3D 01
+  LOCAL_U8_STORE 3                           ; 0x3F4CF7  39 03
+  J L_3F4C6E                                 ; 0x3F4CF9  55 72 FF
+L_3F4CFC:
+  LOCAL_U8_LOAD 2                            ; 0x3F4CFC  38 02
+  IADD_U8 1                                  ; 0x3F4CFE  3D 01
+  LOCAL_U8_STORE 2                           ; 0x3F4D00  39 02
+  J L_3F4C65                                 ; 0x3F4D02  55 60 FF
+L_3F4D05:
+  LEAVE 0, 0                                 ; 0x3F4D05  2E 00 00
+fn5:
+  ENTER 0, 2                                 ; 0x3F4D08  2D 00 02 00 00
+  STATIC_U16 50517                           ; 0x3F4D0D  4F 55 C5
+  IOFFSET_U8_LOAD 12                         ; 0x3F4D10  41 0C
+  NATIVE 1, 1, @ENTITY::DOES_ENTITY_EXIST    ; 0x3F4D12  2C 05 01 13
+  DUP                                        ; 0x3F4D16  2A
+  JZ L_3F4D25                                ; 0x3F4D17  56 0B 00
+  STATIC_U16 50517                           ; 0x3F4D1A  4F 55 C5
+  IOFFSET_U8_LOAD 12                         ; 0x3F4D1D  41 0C
+  NATIVE 1, 1, @ENTITY::IS_ENTITY_AN_OBJECT  ; 0x3F4D1F  2C 05 06 F7
+  INOT                                       ; 0x3F4D23  06
+  IAND                                       ; 0x3F4D24  1F
+L_3F4D25:
+  JZ L_3F4D2B                                ; 0x3F4D25  56 03 00
+  LEAVE 0, 0                                 ; 0x3F4D28  2E 00 00
+L_3F4D2B:
+  STATIC_U16 50517                           ; 0x3F4D2B  4F 55 C5
+  IOFFSET_U8_LOAD 12                         ; 0x3F4D2E  41 0C
+  NATIVE 1, 1, @ENTITY::GET_ENTITY_MODEL     ; 0x3F4D30  2C 05 03 B6
+  GLOBAL_U24_STORE 1826921                   ; 0x3F4D34  63 69 E0 1B
+  LEAVE 0, 0                                 ; 0x3F4D38  2E 00 00
+fn6:
+  ENTER 0, 2                                 ; 0x3F4D3B  2D 00 02 00 00
+  CALL 0x04AD3C                              ; 0x3F4D40  5D 3C AD 04
+  LEAVE 0, 0                                 ; 0x3F4D44  2E 00 00
+  NOP                                        ; 0x3F4D47  00
+  NOP                                        ; 0x3F4D48  00

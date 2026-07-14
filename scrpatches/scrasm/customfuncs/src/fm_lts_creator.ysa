@@ -1,0 +1,320 @@
+; customfuncs payload for fm_lts_creator  (built for the OLD game version)
+; injected at sacrificial function 0x23901E (anchor 2D 04 3A 00 00 38 03)
+; natives are symbolic (@NS::NAME); external R* CALLs are old-build
+; addresses -- run repair_scrpatches.py to migrate to a new version.
+; verified: re-assembles byte-identical to scrpatches.json.
+
+fn0:
+  ENTER 0, 3                                 ; 0x23901E  2D 00 03 00 00
+  GLOBAL_U24_LOAD 1826920                    ; 0x239023  62 68 E0 1B
+  PUSH_CONST_U8 0                            ; 0x239027  25 00
+  IS_BIT_SET                                 ; 0x239029  82
+  INOT                                       ; 0x23902A  06
+  JZ L_239032                                ; 0x23902B  56 04 00
+  CALL @fn1                                  ; 0x23902E  5D 71 90 23
+L_239032:
+  GLOBAL_U24_LOAD 1826920                    ; 0x239032  62 68 E0 1B
+  PUSH_CONST_U8 1                            ; 0x239036  25 01
+  IS_BIT_SET                                 ; 0x239038  82
+  INOT                                       ; 0x239039  06
+  JZ L_239041                                ; 0x23903A  56 04 00
+  CALL @fn3                                  ; 0x23903D  5D 14 91 23
+L_239041:
+  GLOBAL_U24_LOAD 1826920                    ; 0x239041  62 68 E0 1B
+  PUSH_CONST_U8 2                            ; 0x239045  25 02
+  IS_BIT_SET                                 ; 0x239047  82
+  INOT                                       ; 0x239048  06
+  JZ L_239050                                ; 0x239049  56 04 00
+  CALL @fn4                                  ; 0x23904C  5D E8 91 23
+L_239050:
+  GLOBAL_U24_LOAD 1826920                    ; 0x239050  62 68 E0 1B
+  PUSH_CONST_U8 3                            ; 0x239054  25 03
+  IS_BIT_SET                                 ; 0x239056  82
+  INOT                                       ; 0x239057  06
+  JZ L_23905F                                ; 0x239058  56 04 00
+  CALL @fn5                                  ; 0x23905B  5D 93 92 23
+L_23905F:
+  GLOBAL_U24_LOAD 1826920                    ; 0x23905F  62 68 E0 1B
+  PUSH_CONST_U8 4                            ; 0x239063  25 04
+  IS_BIT_SET                                 ; 0x239065  82
+  INOT                                       ; 0x239066  06
+  JZ L_23906E                                ; 0x239067  56 04 00
+  CALL @fn6                                  ; 0x23906A  5D C6 92 23
+L_23906E:
+  LEAVE 0, 0                                 ; 0x23906E  2E 00 00
+fn1:
+  ENTER 0, 2                                 ; 0x239071  2D 00 02 00 00
+  GLOBAL_U24_LOAD 1826922                    ; 0x239076  62 6A E0 1B
+  NATIVE 1, 1, @STREAMING::IS_MODEL_VALID    ; 0x23907A  2C 05 01 86
+  INOT                                       ; 0x23907E  06
+  JZ L_239085                                ; 0x23907F  56 03 00
+  LEAVE 0, 0                                 ; 0x239082  2E 00 00
+L_239085:
+  GLOBAL_U24_LOAD 1826922                    ; 0x239085  62 6A E0 1B
+  GLOBAL_U24 1826923                         ; 0x239089  61 6B E0 1B
+  GLOBAL_U24 1826926                         ; 0x23908D  61 6E E0 1B
+  NATIVE 3, 0, @MISC::GET_MODEL_DIMENSIONS   ; 0x239091  2C 0C 02 1F
+  LEAVE 0, 0                                 ; 0x239095  2E 00 00
+fn2:
+  ENTER 2, 3                                 ; 0x239098  2D 02 03 00 00
+  LOCAL_U8_LOAD 1                            ; 0x23909D  38 01
+  PUSH_CONST_M1                              ; 0x23909F  70
+  INE_JZ L_2390DB                            ; 0x2390A0  58 38 00
+  LOCAL_U8_LOAD 1                            ; 0x2390A3  38 01
+  PUSH_CONST_0                               ; 0x2390A5  71
+  IEQ_JZ L_2390B1                            ; 0x2390A6  57 08 00
+  PUSH_CONST_U8 15                           ; 0x2390A9  25 0F
+  LEAVE 2, 1                                 ; 0x2390AB  2E 02 01
+  J L_239110                                 ; 0x2390AE  55 5F 00
+L_2390B1:
+  LOCAL_U8_LOAD 1                            ; 0x2390B1  38 01
+  PUSH_CONST_1                               ; 0x2390B3  72
+  IEQ_JZ L_2390BF                            ; 0x2390B4  57 08 00
+  PUSH_CONST_U8 21                           ; 0x2390B7  25 15
+  LEAVE 2, 1                                 ; 0x2390B9  2E 02 01
+  J L_239110                                 ; 0x2390BC  55 51 00
+L_2390BF:
+  LOCAL_U8_LOAD 1                            ; 0x2390BF  38 01
+  PUSH_CONST_2                               ; 0x2390C1  73
+  IEQ_JZ L_2390CD                            ; 0x2390C2  57 08 00
+  PUSH_CONST_U8 24                           ; 0x2390C5  25 18
+  LEAVE 2, 1                                 ; 0x2390C7  2E 02 01
+  J L_239110                                 ; 0x2390CA  55 43 00
+L_2390CD:
+  LOCAL_U8_LOAD 1                            ; 0x2390CD  38 01
+  PUSH_CONST_3                               ; 0x2390CF  74
+  IEQ_JZ L_2390D8                            ; 0x2390D0  57 05 00
+  PUSH_CONST_U8 18                           ; 0x2390D3  25 12
+  LEAVE 2, 1                                 ; 0x2390D5  2E 02 01
+L_2390D8:
+  J L_239110                                 ; 0x2390D8  55 35 00
+L_2390DB:
+  LOCAL_U8_LOAD 0                            ; 0x2390DB  38 00
+  PUSH_CONST_0                               ; 0x2390DD  71
+  IEQ_JZ L_2390E9                            ; 0x2390DE  57 08 00
+  PUSH_CONST_U8 52                           ; 0x2390E1  25 34
+  LEAVE 2, 1                                 ; 0x2390E3  2E 02 01
+  J L_239110                                 ; 0x2390E6  55 27 00
+L_2390E9:
+  LOCAL_U8_LOAD 0                            ; 0x2390E9  38 00
+  PUSH_CONST_1                               ; 0x2390EB  72
+  IEQ_JZ L_2390F7                            ; 0x2390EC  57 08 00
+  PUSH_CONST_U8 15                           ; 0x2390EF  25 0F
+  LEAVE 2, 1                                 ; 0x2390F1  2E 02 01
+  J L_239110                                 ; 0x2390F4  55 19 00
+L_2390F7:
+  LOCAL_U8_LOAD 0                            ; 0x2390F7  38 00
+  PUSH_CONST_2                               ; 0x2390F9  73
+  IEQ_JZ L_239105                            ; 0x2390FA  57 08 00
+  PUSH_CONST_U8 20                           ; 0x2390FD  25 14
+  LEAVE 2, 1                                 ; 0x2390FF  2E 02 01
+  J L_239110                                 ; 0x239102  55 0B 00
+L_239105:
+  LOCAL_U8_LOAD 0                            ; 0x239105  38 00
+  PUSH_CONST_3                               ; 0x239107  74
+  IEQ_JZ L_239110                            ; 0x239108  57 05 00
+  PUSH_CONST_U8 29                           ; 0x23910B  25 1D
+  LEAVE 2, 1                                 ; 0x23910D  2E 02 01
+L_239110:
+  PUSH_CONST_6                               ; 0x239110  77
+  LEAVE 2, 1                                 ; 0x239111  2E 02 01
+fn3:
+  ENTER 0, 8                                 ; 0x239114  2D 00 08 00 00
+  PUSH_CONST_0                               ; 0x239119  71
+  LOCAL_U8_STORE 2                           ; 0x23911A  39 02
+L_23911C:
+  LOCAL_U8_LOAD 2                            ; 0x23911C  38 02
+  PUSH_CONST_3                               ; 0x23911E  74
+  ILE_JZ L_2391E5                            ; 0x23911F  5C C3 00
+  LOCAL_U8_LOAD 2                            ; 0x239122  38 02
+  LOCAL_U8_LOAD 2                            ; 0x239124  38 02
+  GLOBAL_U24 4718592                         ; 0x239126  61 00 00 48
+  PUSH_CONST_U24 125909                      ; 0x23912A  64 D5 EB 01
+  IOFFSET                                    ; 0x23912E  3F
+  ARRAY_U8_LOAD 1                            ; 0x23912F  35 01
+  CALL @fn2                                  ; 0x239131  5D 98 90 23
+  LOCAL_U8 4                                 ; 0x239135  37 04
+  LOCAL_U8 5                                 ; 0x239137  37 05
+  LOCAL_U8 6                                 ; 0x239139  37 06
+  LOCAL_U8 7                                 ; 0x23913B  37 07
+  NATIVE 5, 0, @HUD::GET_HUD_COLOUR          ; 0x23913D  2C 14 00 C8
+  PUSH_CONST_0                               ; 0x239141  71
+  LOCAL_U8_STORE 3                           ; 0x239142  39 03
+L_239144:
+  LOCAL_U8_LOAD 3                            ; 0x239144  38 03
+  PUSH_CONST_U8 16                           ; 0x239146  25 10
+  ILE_JZ L_2391DC                            ; 0x239148  5C 91 00
+  PUSH_CONST_3                               ; 0x23914B  74
+  LOCAL_U8_LOAD 3                            ; 0x23914C  38 03
+  LOCAL_U8_LOAD 2                            ; 0x23914E  38 02
+  GLOBAL_U24 4718592                         ; 0x239150  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x239154  46 15 0E
+  ARRAY_U16 26949                            ; 0x239157  49 45 69
+  IOFFSET_S16 3152                           ; 0x23915A  46 50 0C
+  ARRAY_U8 36                                ; 0x23915D  34 24
+  IOFFSET_U8 16                              ; 0x23915F  40 10
+  LOAD_N                                     ; 0x239161  32
+  PUSH_CONST_3                               ; 0x239162  74
+  LOCAL_U8_LOAD 3                            ; 0x239163  38 03
+  LOCAL_U8_LOAD 2                            ; 0x239165  38 02
+  GLOBAL_U24 4718592                         ; 0x239167  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x23916B  46 15 0E
+  ARRAY_U16 26949                            ; 0x23916E  49 45 69
+  IOFFSET_S16 3152                           ; 0x239171  46 50 0C
+  ARRAY_U8 36                                ; 0x239174  34 24
+  IOFFSET_U8 19                              ; 0x239176  40 13
+  LOAD_N                                     ; 0x239178  32
+  LOCAL_U8_LOAD 3                            ; 0x239179  38 03
+  LOCAL_U8_LOAD 2                            ; 0x23917B  38 02
+  GLOBAL_U24 4718592                         ; 0x23917D  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x239181  46 15 0E
+  ARRAY_U16 26949                            ; 0x239184  49 45 69
+  IOFFSET_S16 3152                           ; 0x239187  46 50 0C
+  ARRAY_U8 36                                ; 0x23918A  34 24
+  IOFFSET_U8_LOAD 23                         ; 0x23918C  41 17
+  LOCAL_U8_LOAD 4                            ; 0x23918E  38 04
+  LOCAL_U8_LOAD 5                            ; 0x239190  38 05
+  LOCAL_U8_LOAD 6                            ; 0x239192  38 06
+  PUSH_CONST_U8 98                           ; 0x239194  25 62
+  PUSH_CONST_1                               ; 0x239196  72
+  PUSH_CONST_1                               ; 0x239197  72
+  CALL 0x22FEB9                              ; 0x239198  5D B9 FE 22
+  PUSH_CONST_3                               ; 0x23919C  74
+  PUSH_CONST_3                               ; 0x23919D  74
+  LOCAL_U8_LOAD 3                            ; 0x23919E  38 03
+  LOCAL_U8_LOAD 2                            ; 0x2391A0  38 02
+  GLOBAL_U24 4718592                         ; 0x2391A2  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x2391A6  46 15 0E
+  ARRAY_U16 26949                            ; 0x2391A9  49 45 69
+  IOFFSET_S16 3152                           ; 0x2391AC  46 50 0C
+  ARRAY_U8 36                                ; 0x2391AF  34 24
+  IOFFSET_U8 16                              ; 0x2391B1  40 10
+  LOAD_N                                     ; 0x2391B3  32
+  PUSH_CONST_3                               ; 0x2391B4  74
+  LOCAL_U8_LOAD 3                            ; 0x2391B5  38 03
+  LOCAL_U8_LOAD 2                            ; 0x2391B7  38 02
+  GLOBAL_U24 4718592                         ; 0x2391B9  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x2391BD  46 15 0E
+  ARRAY_U16 26949                            ; 0x2391C0  49 45 69
+  IOFFSET_S16 3152                           ; 0x2391C3  46 50 0C
+  ARRAY_U8 36                                ; 0x2391C6  34 24
+  IOFFSET_U8 19                              ; 0x2391C8  40 13
+  LOAD_N                                     ; 0x2391CA  32
+  CALL 0x11FBAB                              ; 0x2391CB  5D AB FB 11
+  CALL 0x22FCDE                              ; 0x2391CF  5D DE FC 22
+  LOCAL_U8_LOAD 3                            ; 0x2391D3  38 03
+  IADD_U8 1                                  ; 0x2391D5  3D 01
+  LOCAL_U8_STORE 3                           ; 0x2391D7  39 03
+  J L_239144                                 ; 0x2391D9  55 68 FF
+L_2391DC:
+  LOCAL_U8_LOAD 2                            ; 0x2391DC  38 02
+  IADD_U8 1                                  ; 0x2391DE  3D 01
+  LOCAL_U8_STORE 2                           ; 0x2391E0  39 02
+  J L_23911C                                 ; 0x2391E2  55 37 FF
+L_2391E5:
+  LEAVE 0, 0                                 ; 0x2391E5  2E 00 00
+fn4:
+  ENTER 0, 8                                 ; 0x2391E8  2D 00 08 00 00
+  PUSH_CONST_0                               ; 0x2391ED  71
+  LOCAL_U8_STORE 2                           ; 0x2391EE  39 02
+L_2391F0:
+  LOCAL_U8_LOAD 2                            ; 0x2391F0  38 02
+  PUSH_CONST_3                               ; 0x2391F2  74
+  ILE_JZ L_239290                            ; 0x2391F3  5C 9A 00
+  PUSH_CONST_0                               ; 0x2391F6  71
+  LOCAL_U8_STORE 3                           ; 0x2391F7  39 03
+L_2391F9:
+  LOCAL_U8_LOAD 3                            ; 0x2391F9  38 03
+  PUSH_CONST_U8 16                           ; 0x2391FB  25 10
+  ILE_JZ L_239287                            ; 0x2391FD  5C 87 00
+  PUSH_CONST_3                               ; 0x239200  74
+  LOCAL_U8_LOAD 3                            ; 0x239201  38 03
+  LOCAL_U8_LOAD 2                            ; 0x239203  38 02
+  GLOBAL_U24 4718592                         ; 0x239205  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x239209  46 15 0E
+  ARRAY_U16 26949                            ; 0x23920C  49 45 69
+  IOFFSET_S16 6789                           ; 0x23920F  46 85 1A
+  ARRAY_U8 3                                 ; 0x239212  34 03
+  LOAD_N                                     ; 0x239214  32
+  PUSH_CONST_3                               ; 0x239215  74
+  LOCAL_U8_LOAD 3                            ; 0x239216  38 03
+  LOCAL_U8_LOAD 2                            ; 0x239218  38 02
+  GLOBAL_U24 4718592                         ; 0x23921A  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x23921E  46 15 0E
+  ARRAY_U16 26949                            ; 0x239221  49 45 69
+  IOFFSET_S16 6841                           ; 0x239224  46 B9 1A
+  ARRAY_U8 3                                 ; 0x239227  34 03
+  LOAD_N                                     ; 0x239229  32
+  LOCAL_U8_LOAD 3                            ; 0x23922A  38 03
+  LOCAL_U8_LOAD 2                            ; 0x23922C  38 02
+  GLOBAL_U24 4718592                         ; 0x23922E  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x239232  46 15 0E
+  ARRAY_U16 26949                            ; 0x239235  49 45 69
+  IOFFSET_S16 6893                           ; 0x239238  46 ED 1A
+  ARRAY_U8_LOAD 1                            ; 0x23923B  35 01
+  PUSH_CONST_U8 255                          ; 0x23923D  25 FF
+  PUSH_CONST_U8 0                            ; 0x23923F  25 00
+  PUSH_CONST_U8 0                            ; 0x239241  25 00
+  PUSH_CONST_U8 98                           ; 0x239243  25 62
+  PUSH_CONST_1                               ; 0x239245  72
+  PUSH_CONST_1                               ; 0x239246  72
+  CALL 0x22FEB9                              ; 0x239247  5D B9 FE 22
+  PUSH_CONST_1                               ; 0x23924B  72
+  PUSH_CONST_3                               ; 0x23924C  74
+  LOCAL_U8_LOAD 3                            ; 0x23924D  38 03
+  LOCAL_U8_LOAD 2                            ; 0x23924F  38 02
+  GLOBAL_U24 4718592                         ; 0x239251  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x239255  46 15 0E
+  ARRAY_U16 26949                            ; 0x239258  49 45 69
+  IOFFSET_S16 6789                           ; 0x23925B  46 85 1A
+  ARRAY_U8 3                                 ; 0x23925E  34 03
+  LOAD_N                                     ; 0x239260  32
+  PUSH_CONST_3                               ; 0x239261  74
+  LOCAL_U8_LOAD 3                            ; 0x239262  38 03
+  LOCAL_U8_LOAD 2                            ; 0x239264  38 02
+  GLOBAL_U24 4718592                         ; 0x239266  61 00 00 48
+  IOFFSET_S16 3605                           ; 0x23926A  46 15 0E
+  ARRAY_U16 26949                            ; 0x23926D  49 45 69
+  IOFFSET_S16 6841                           ; 0x239270  46 B9 1A
+  ARRAY_U8 3                                 ; 0x239273  34 03
+  LOAD_N                                     ; 0x239275  32
+  CALL 0x11FBAB                              ; 0x239276  5D AB FB 11
+  CALL 0x22FCDE                              ; 0x23927A  5D DE FC 22
+  LOCAL_U8_LOAD 3                            ; 0x23927E  38 03
+  IADD_U8 1                                  ; 0x239280  3D 01
+  LOCAL_U8_STORE 3                           ; 0x239282  39 03
+  J L_2391F9                                 ; 0x239284  55 72 FF
+L_239287:
+  LOCAL_U8_LOAD 2                            ; 0x239287  38 02
+  IADD_U8 1                                  ; 0x239289  3D 01
+  LOCAL_U8_STORE 2                           ; 0x23928B  39 02
+  J L_2391F0                                 ; 0x23928D  55 60 FF
+L_239290:
+  LEAVE 0, 0                                 ; 0x239290  2E 00 00
+fn5:
+  ENTER 0, 2                                 ; 0x239293  2D 00 02 00 00
+  STATIC_U16 8684                            ; 0x239298  4F EC 21
+  IOFFSET_U8_LOAD 12                         ; 0x23929B  41 0C
+  NATIVE 1, 1, @ENTITY::DOES_ENTITY_EXIST    ; 0x23929D  2C 05 03 DB
+  DUP                                        ; 0x2392A1  2A
+  JZ L_2392B0                                ; 0x2392A2  56 0B 00
+  STATIC_U16 8684                            ; 0x2392A5  4F EC 21
+  IOFFSET_U8_LOAD 12                         ; 0x2392A8  41 0C
+  NATIVE 1, 1, @ENTITY::IS_ENTITY_AN_OBJECT  ; 0x2392AA  2C 05 02 F9
+  INOT                                       ; 0x2392AE  06
+  IAND                                       ; 0x2392AF  1F
+L_2392B0:
+  JZ L_2392B6                                ; 0x2392B0  56 03 00
+  LEAVE 0, 0                                 ; 0x2392B3  2E 00 00
+L_2392B6:
+  STATIC_U16 8684                            ; 0x2392B6  4F EC 21
+  IOFFSET_U8_LOAD 12                         ; 0x2392B9  41 0C
+  NATIVE 1, 1, @ENTITY::GET_ENTITY_MODEL     ; 0x2392BB  2C 05 04 90
+  GLOBAL_U24_STORE 1826921                   ; 0x2392BF  63 69 E0 1B
+  LEAVE 0, 0                                 ; 0x2392C3  2E 00 00
+fn6:
+  ENTER 0, 2                                 ; 0x2392C6  2D 00 02 00 00
+  CALL 0x0686C0                              ; 0x2392CB  5D C0 86 06
+  LEAVE 0, 0                                 ; 0x2392CF  2E 00 00
+  NOP                                        ; 0x2392D2  00
+  NOP                                        ; 0x2392D3  00
