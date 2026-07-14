@@ -1,0 +1,22 @@
+{
+  "description": "Auswahl-Policy fuer die dekompilierten GTA-.c-Files. select_sources.py scannt ein Quellverzeichnis (z. B. new/), verwirft Stubs und ordnet jede Datei dem ersten passenden Tier zu. Reihenfolge der Tiers = Prioritaet. Getrimmt auf das minimal-robuste Set, das alle script-ableitbaren offsets.ini-Werte deckt: 6 Creators + fmmc_launcher + tuneables_processing. Hinweis: custom_* (Global_1826920..22) sind Xenvious-eigene Globals und in keinem Script enthalten -> manuell pflegen.",
+  "stub_max_bytes": 128,
+  "tiers": [
+    {
+      "name": "creator_serializer",
+      "reason": "Strukturierte Creator-Serialisierung (DATADICT/DATAARRAY-Dumps). Primaerquelle fuer Creator-Globals, current_creator_*, den team-Block sowie die Basis-Structs von saved_*/published_*.",
+      "name_globs": ["*creator*"],
+      "min_serializer_calls": 500
+    },
+    {
+      "name": "creator_launcher",
+      "reason": "Corona/Lobby-Launcher der Creator. Einzige On-Domain-Quelle fuer launch_creator_local_2/4 und transitionState; traegt zudem die saved_*/published_*-Basis.",
+      "name_globs": ["fmmc_launcher.c"]
+    },
+    {
+      "name": "tuneables",
+      "reason": "Server-seitige Tuneables. Semantisches Zuhause der Tuneable-Flags (enable_murica, too_many_props, random_transform).",
+      "name_globs": ["tuneables_processing.c"]
+    }
+  ]
+}
