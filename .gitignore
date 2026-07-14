@@ -1,2 +1,9 @@
 old/
 new/
+new-latest/
+__pycache__/
+*.pyc
+reports/
+scrpatches/disasm/
+scrpatches/reports/
+scrpatches/decompiler/
