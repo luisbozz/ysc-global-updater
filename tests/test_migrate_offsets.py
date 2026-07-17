@@ -119,6 +119,28 @@ class MigrateOffsetsTest(unittest.TestCase):
         self.assertIn('OFFSET_hex = "0x60"', out)
         self.assertEqual(stats.get("skipped_non_global"), 2)
 
+    def test_anchor_map_overrides_bare_root_skip(self) -> None:
+        # anchor_map (tools/verified_anchors.py) muss VOR dem bare-root-skip greifen,
+        # z. B. fuer OFFSET_check_creator (bare Global_N, sonst versions-stabil
+        # angenommen, hier aber ueber einen echten Quelltext-Anker migriert).
+        old_rev, new_fwd = self._maps(OLD_C, NEW_C)
+        ini = 'OFFSET_check_creator = "Global_1921391"\n'
+        out, stats, changes = migrate_text(
+            ini, old_rev, new_fwd, anchor_map={"OFFSET_check_creator": "Global_1925981"})
+        self.assertIn('OFFSET_check_creator = "Global_1925981"', out)
+        self.assertEqual(stats.get("migrated_anchor"), 1)
+        self.assertEqual(stats.get("skipped_root", 0), 0)
+        self.assertEqual(changes[0], ("OFFSET_check_creator", "Global_1921391", "Global_1925981"))
+
+    def test_anchor_map_unchanged_value_counts_as_unchanged(self) -> None:
+        old_rev, new_fwd = self._maps(OLD_C, NEW_C)
+        ini = 'OFFSET_check_creator = "Global_1921391"\n'
+        out, stats, changes = migrate_text(
+            ini, old_rev, new_fwd, anchor_map={"OFFSET_check_creator": "Global_1921391"})
+        self.assertIn('OFFSET_check_creator = "Global_1921391"', out)
+        self.assertEqual(stats.get("unchanged"), 1)
+        self.assertEqual(changes, [])
+
 
 class PostprocessStridesTest(unittest.TestCase):
     def test_family_stride_from_array_offset(self) -> None:

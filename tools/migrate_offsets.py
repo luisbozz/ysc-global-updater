@@ -429,7 +429,7 @@ def migrate_text(ini_text: str, old_rev: dict, new_fwd: dict, fallback=None,
                  struct_families: tuple = (), helper_names=None,
                  unresolved: list = None, loose=None, skip_families: tuple = (),
                  local_resolver=None, field_resolver=None,
-                 local_field_resolver=None) -> tuple[str, dict, list]:
+                 local_field_resolver=None, anchor_map: dict = None) -> tuple[str, dict, list]:
     out: list[str] = []
     stats: dict[str, int] = defaultdict(int)
     changes: list[tuple[str, str, str]] = []
@@ -492,6 +492,20 @@ def migrate_text(ini_text: str, old_rev: dict, new_fwd: dict, fallback=None,
             out.append(line)
             continue
         name, val = m.group(1), m.group(2)
+        if anchor_map and name in anchor_map:
+            # Verified anchor resolver (tools/verified_anchors.py): a handful of
+            # scalar/code-accessed offsets with no semantic key, pinned via a
+            # structurally distinctive source anchor instead of a raw Global_
+            # number. Takes priority over the bare-root skip / generic pipeline.
+            nv = anchor_map[name]
+            if nv != val:
+                stats["migrated_anchor"] += 1
+                changes.append((name, val, nv))
+                out.append(re.sub(r'"[^"]+"', f'"{nv}"', line, count=1))
+            else:
+                stats["unchanged"] += 1
+                out.append(line)
+            continue
         if skip_families and name.startswith("OFFSET_") and \
                 any(name[len("OFFSET_"):].startswith(p) for p in skip_families):
             # Anwendungs-eigenes Feature (z. B. Xenvious custom_*) -> nie migrieren.
@@ -701,6 +715,13 @@ def main() -> int:
     struct_families = tuple(p for p in args.struct_families.split(",") if p) if args.structural else ()
     skip_families = tuple(p for p in args.skip_families.split(",") if p)
 
+    # Verifizierte Anker (immer an, sehr schnell): eine kleine, versionsrobuste
+    # Liste code-accessed Scalars ohne semantischen Key (z. B. check_creator,
+    # hide_creator_menu), ueber strukturell eindeutige Quelltext-Anker aufgeloest
+    # statt ueber eine veraltete Hardcode-Zuordnung.
+    from tools.verified_anchors import build_anchor_map as _build_anchor_map  # noqa: E402
+    anchor_map = _build_anchor_map(old_dir, new_dir)
+
     # Dedizierter Local-Kontext-Matcher (immer an, schnell): loest die
     # current_creator_* Locals (fLocal_/uLocal_/iLocal_) per Anker-Matching.
     from tools.locals import migrate_local as _migrate_local  # noqa: E402
@@ -763,7 +784,7 @@ def main() -> int:
     migrated_text, stats, changes = migrate_text(
         ini_path.read_text(encoding="utf-8"), old_rev, new_fwd, fallback, infer_families,
         structural, struct_families, helper_names, unresolved, loose, skip_families,
-        local_resolver, field_resolver, local_field_resolver)
+        local_resolver, field_resolver, local_field_resolver, anchor_map)
 
     # Nachkorrektur: Familien-Konsens (cross-family-Ausreisser) + _NEXT-Strides.
     struct_fams_all = tuple(p for p in args.struct_families.split(",") if p)
