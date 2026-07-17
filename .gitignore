@@ -1,9 +1,11 @@
 old/
 new/
 new-latest/
+scripts/
 __pycache__/
 *.pyc
 reports/
 scrpatches/disasm/
 scrpatches/reports/
 scrpatches/decompiler/
+memories/

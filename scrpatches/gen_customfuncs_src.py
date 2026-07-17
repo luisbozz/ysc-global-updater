@@ -19,7 +19,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT.parent))
 
+import argparse  # noqa: E402
+import versions  # noqa: E402
 from scrasm.yscfull import YscFull  # noqa: E402
 from scrasm.natives import NativeResolver  # noqa: E402
 from scrasm.repair import find_anchor  # noqa: E402
@@ -33,6 +36,17 @@ OUT = ROOT / "scrasm" / "customfuncs" / "src"
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Generate readable .ysa source from the customfuncs payloads.")
+    ap.add_argument("--build", help="Build the payloads are authored for "
+                                    "(default: oldest folder in disasm/).")
+    args = ap.parse_args()
+    builds = versions.list_versions(DISASM)
+    if not builds:
+        raise SystemExit("no build folders in disasm/ -- fetch one first")
+    build = versions.resolve(DISASM, args.build) if args.build else builds[0]
+    print(f"[versions] source build: {build}")
+
     patches = json.loads(DATA.read_text())
     OUT.mkdir(parents=True, exist_ok=True)
     done = []
@@ -42,9 +56,9 @@ def main() -> int:
                 and b.replace(" ", "").upper().startswith("2D")):
             continue
         script = p["script_name"]
-        of = DISASM / f"{script}.old.ysc.full"
+        of = DISASM / build / f"{script}.ysc.full"
         if not of.exists():
-            print(f"skip {script}: missing {of.name}")
+            print(f"skip {script}: missing {of}")
             continue
         full = YscFull.parse(of)
         resolver = NativeResolver.from_full(full)

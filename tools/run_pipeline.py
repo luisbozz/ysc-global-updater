@@ -16,6 +16,9 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import versions  # noqa: E402  (repo-root helper: scripts/<build> resolution)
+
 OFFSET_RE = re.compile(r'^(OFFSET_[A-Za-z0-9_]+)\s*=\s*"([^"]+)"')
 
 
@@ -84,8 +87,14 @@ def print_summary(report_path: pathlib.Path, out_path: pathlib.Path, new_dir: pa
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--old-dir", required=True, help="Decompiled scripts that match the CURRENT offsets.ini.")
-    p.add_argument("--new-dir", required=True, help="Freshly decompiled scripts of the NEW game version.")
+    p.add_argument("--new", help="New build to migrate TO (e.g. 1.73-3889, 1.73, or "
+                                 "'latest'). Default: newest folder in scripts/.")
+    p.add_argument("--old", help="Old build your offsets.ini matches. Default: the "
+                                 "build right before --new.")
+    p.add_argument("--old-dir", help="Override: explicit path to the OLD scripts "
+                                     "(instead of --old).")
+    p.add_argument("--new-dir", help="Override: explicit path to the NEW scripts "
+                                     "(instead of --new).")
     p.add_argument("--offsets", default="offsets.ini", help="Source offsets.ini (never modified).")
     p.add_argument("--expect", help="A known-good target offsets.ini to score against (optional).")
     p.add_argument("--keep-list", default="reports/sources.keep.txt")
@@ -93,6 +102,21 @@ def main() -> int:
     p.add_argument("--infer", action="store_true",
                    help="Also run the slow infer context-matcher for the last gaps (optional, minutes).")
     args = p.parse_args()
+
+    # Resolve --old/--new build labels against scripts/<build>/ (unless the
+    # explicit --old-dir/--new-dir overrides are given).
+    scripts_root = ROOT / "scripts"
+    if not args.new_dir:
+        new_build = versions.resolve(scripts_root, args.new)
+        args.new_dir = str(scripts_root / new_build)
+        print(f"[versions] new build: {new_build}")
+    if not args.old_dir:
+        old_build = (versions.resolve(scripts_root, args.old) if args.old
+                     else versions.previous(scripts_root, pathlib.Path(args.new_dir).name))
+        if not old_build:
+            raise SystemExit("no earlier build in scripts/ -- pass --old <build> or --old-dir")
+        args.old_dir = str(scripts_root / old_build)
+        print(f"[versions] old build: {old_build}")
 
     def rel(x: str) -> pathlib.Path:
         return pathlib.Path(x) if pathlib.Path(x).is_absolute() else ROOT / x

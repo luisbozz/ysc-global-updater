@@ -27,7 +27,7 @@ DISASM = Path(__file__).resolve().parents[2] / "disasm"
 def _full_files():
     if not DISASM.is_dir():
         return []
-    return sorted(DISASM.glob("*.ysc.full"))
+    return sorted(DISASM.glob("*/*.ysc.full"))
 
 
 @unittest.skipUnless(_full_files(), "no .ysc.full dumps present in scrpatches/disasm/")

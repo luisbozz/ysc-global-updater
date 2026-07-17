@@ -11,6 +11,7 @@ the payload byte-length and semantics intact:
 from __future__ import annotations
 
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -35,20 +36,29 @@ def _capture_blob():
     return None
 
 
-def _have_capture():
-    return (DISASM / "fm_capture_creator.old.ysc.full").exists() and \
-           (DISASM / "fm_capture_creator.new.ysc.full").exists()
+def _builds():
+    if not DISASM.is_dir():
+        return []
+    return sorted((d.name for d in DISASM.iterdir() if d.is_dir()),
+                  key=lambda n: [int(x) for x in re.findall(r"\d+", n)] or [0])
 
 
-@unittest.skipUnless(_have_capture() and _capture_blob(), "capture dumps/blob missing")
+def _old_new_capture():
+    b = _builds()
+    if len(b) < 2:
+        return None
+    of = DISASM / b[0] / "fm_capture_creator.ysc.full"
+    nf = DISASM / b[-1] / "fm_capture_creator.ysc.full"
+    return (of, nf) if of.is_file() and nf.is_file() else None
+
+
+@unittest.skipUnless(_old_new_capture() and _capture_blob(), "capture dumps/blob missing")
 class RepairTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.raw = parse_hex(_capture_blob())
-        cls.ctx = ScriptContext.build(
-            YscFull.parse(DISASM / "fm_capture_creator.old.ysc.full"),
-            YscFull.parse(DISASM / "fm_capture_creator.new.ysc.full"),
-        )
+        of, nf = _old_new_capture()
+        cls.ctx = ScriptContext.build(YscFull.parse(of), YscFull.parse(nf))
         cls.new_bytes, cls.rep = cls.ctx.repair(cls.raw, "fm_capture_creator")
 
     def test_length_preserved(self):
@@ -90,8 +100,8 @@ class RepairTest(unittest.TestCase):
         self.assertGreaterEqual(len(self.rep.external_resolved), len(self.rep.external_unresolved))
 
     def test_embedded_strides_repaired(self):
-        # the creator-global team stride shifts 26949 -> 26968 across versions
-        self.assertTrue(self.rep.stride_updated, "expected embedded strides to be updated")
+        # any stride that was updated must have really changed and none may be
+        # left in review (whether strides change at all is version-dependent).
         self.assertEqual(self.rep.stride_review, [], "no stride should be left unresolved")
         for g, io, old, new in self.rep.stride_updated:
             self.assertNotEqual(old, new)

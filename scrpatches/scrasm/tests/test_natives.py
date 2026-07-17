@@ -8,6 +8,7 @@ injected customfuncs payloads after a game update.
 
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -18,6 +19,7 @@ from scrasm.yscfull import YscFull  # noqa: E402
 from scrasm.natives import NativeResolver, load_hash_names, load_crossmap  # noqa: E402
 
 DISASM = Path(__file__).resolve().parents[2] / "disasm"
+OLD_BUILD = "1.71-3586"   # build the ground-truth annotations were taken from
 
 # ground truth from scrcustomfuncs_capture.txt (OLD capture version)
 CAPTURE_OLD_TRUTH = {
@@ -30,8 +32,29 @@ CAPTURE_OLD_TRUTH = {
 }
 
 
-def _have(tag: str) -> bool:
-    return (DISASM / f"fm_capture_creator.{tag}.ysc.full").exists()
+def _builds() -> list[str]:
+    if not DISASM.is_dir():
+        return []
+    return sorted((d.name for d in DISASM.iterdir() if d.is_dir()),
+                  key=lambda n: [int(x) for x in re.findall(r"\d+", n)] or [0])
+
+
+def _cap(build: str) -> Path:
+    return DISASM / build / "fm_capture_creator.ysc.full"
+
+
+def _newest():
+    b = _builds()
+    return b[-1] if b else None
+
+
+def _have_old() -> bool:
+    return _cap(OLD_BUILD).is_file()
+
+
+def _have_new() -> bool:
+    n = _newest()
+    return bool(n and n != OLD_BUILD and _cap(n).is_file())
 
 
 class NativeResolverTest(unittest.TestCase):
@@ -41,28 +64,25 @@ class NativeResolverTest(unittest.TestCase):
         self.assertTrue(names[0x4EDE34FBADD967A6].endswith("WAIT"))
         self.assertGreater(len(load_crossmap()), 1000)
 
-    @unittest.skipUnless(_have("old"), "capture.old dump missing")
+    @unittest.skipUnless(_have_old(), "capture 1.71-3586 dump missing")
     def test_capture_old_ground_truth(self):
-        y = YscFull.parse(DISASM / "fm_capture_creator.old.ysc.full")
-        nr = NativeResolver.from_full(y)
+        nr = NativeResolver.from_full(YscFull.parse(_cap(OLD_BUILD)))
         for idx, want in CAPTURE_OLD_TRUTH.items():
             self.assertTrue(nr.name_at(idx).endswith(want),
                             f"index {idx} -> {nr.name_at(idx)!r}, expected …{want}")
 
-    @unittest.skipUnless(_have("old"), "capture.old dump missing")
+    @unittest.skipUnless(_have_old(), "capture 1.71-3586 dump missing")
     def test_index_of_name_invertible(self):
-        y = YscFull.parse(DISASM / "fm_capture_creator.old.ysc.full")
-        nr = NativeResolver.from_full(y)
+        nr = NativeResolver.from_full(YscFull.parse(_cap(OLD_BUILD)))
         ion = nr.index_of_name()
         for idx, want in CAPTURE_OLD_TRUTH.items():
             full = nr.name_at(idx)
             self.assertEqual(ion[full], idx)
 
-    @unittest.skipUnless(_have("old") and _have("new"), "need old+new dumps")
+    @unittest.skipUnless(_have_old() and _have_new(), "need old+new dumps")
     def test_indices_shift_between_versions(self):
-        old = NativeResolver.from_full(YscFull.parse(DISASM / "fm_capture_creator.old.ysc.full"))
-        new = NativeResolver.from_full(YscFull.parse(DISASM / "fm_capture_creator.new.ysc.full"))
-        old_by_name = old.index_of_name()
+        old = NativeResolver.from_full(YscFull.parse(_cap(OLD_BUILD)))
+        new = NativeResolver.from_full(YscFull.parse(_cap(_newest())))
         new_by_name = new.index_of_name()
         shifted = 0
         for idx, want in CAPTURE_OLD_TRUTH.items():

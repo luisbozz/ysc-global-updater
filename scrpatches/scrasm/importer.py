@@ -98,9 +98,11 @@ def to_ysa(code: bytes, base: int = 0, comments: bool = False,
                 k += 1
 
     lines: list[str] = []
+    emitted: set[int] = set()
     for ins in ins_list:
         if ins.offset in label_names:
             lines.append(f"{label_names[ins.offset]}:")
+            emitted.add(ins.offset)
         if function_labels and ins.name == "ENTER" and ins.offset in fbaddr:
             lines.append(f"{fbaddr[ins.offset]}:")
         args = _operand_text(ins, label_names, resolver, fbaddr)
@@ -108,6 +110,22 @@ def to_ysa(code: bytes, base: int = 0, comments: bool = False,
         if comments:
             text = f"{text:<44} ; 0x{ins.offset:X}  {ins.hexbytes()}"
         lines.append(text)
+
+    # A branch may target the address right after the last instruction (a common
+    # jump-to-exit) -- emit a trailing label so it resolves. Any other unmatched
+    # target means the branch leaves this code region (e.g. an isolated function
+    # that jumps into its neighbour) and cannot be represented on its own.
+    end_off = (ins_list[-1].offset + ins_list[-1].length) if ins_list else base
+    for t, name in label_names.items():
+        if t in emitted:
+            continue
+        if t == end_off:
+            lines.append(f"{name}:")
+        else:
+            raise ValueError(
+                f"branch target 0x{t:X} is not an instruction boundary in "
+                f"[0x{base:X}, 0x{end_off:X}) -- code region is not self-contained"
+            )
     return "\n".join(lines) + "\n"
 
 

@@ -16,13 +16,16 @@ Usage:  python3 repair_scrpatches.py
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT.parent))
 
+import versions  # noqa: E402  (repo-root helper: disasm/<build> resolution)
 from scrasm.yscfull import YscFull  # noqa: E402
 from scrasm.repair import ScriptContext, find_anchor  # noqa: E402
 from scrasm.disasm import parse_hex  # noqa: E402
@@ -43,15 +46,31 @@ def _is_injected(p: dict) -> bool:
 
 
 def main() -> int:
+    ap = argparse.ArgumentParser(
+        description="Repair injected customfuncs payloads for a new game build.")
+    ap.add_argument("--new", help="New build (e.g. 1.73-3889, 1.73, or 'latest'). "
+                                  "Default: newest folder in disasm/.")
+    ap.add_argument("--old", help="Old build the payloads were built for. "
+                                  "Default: the build right before --new.")
+    args = ap.parse_args()
+
+    new_build = versions.resolve(DISASM, args.new)
+    old_build = (versions.resolve(DISASM, args.old) if args.old
+                 else versions.previous(DISASM, new_build))
+    if not old_build:
+        raise SystemExit("no earlier build in disasm/ -- pass --old <build>")
+    print(f"[versions] repairing {old_build} -> {new_build}")
+
     patches = json.loads(DATA.read_text())
     scripts = sorted({p["script_name"] for p in patches if _is_injected(p)})
 
     contexts: dict[str, ScriptContext] = {}
     notes: dict[str, str] = {}
     for s in scripts:
-        of, nf = DISASM / f"{s}.old.ysc.full", DISASM / f"{s}.new.ysc.full"
+        of = DISASM / old_build / f"{s}.ysc.full"
+        nf = DISASM / new_build / f"{s}.ysc.full"
         if not (of.exists() and nf.exists()):
-            notes[s] = "missing .ysc.full dumps (old/new)"
+            notes[s] = f"missing dumps ({old_build}/ or {new_build}/)"
             continue
         ctx = ScriptContext.build(YscFull.parse(of), YscFull.parse(nf))
         if ctx.old_base is None or ctx.new_base is None:
@@ -114,6 +133,7 @@ def main() -> int:
     header = [
         "customfuncs payload repair report",
         "=" * 60,
+        f"build: {old_build} -> {new_build}",
         f"injected payloads repaired: {n_repaired}   need review: {n_review}",
         "",
     ]

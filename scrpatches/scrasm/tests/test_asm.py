@@ -29,7 +29,7 @@ _PURE_HEX = re.compile(r"^([0-9A-Fa-f]{2}\s+)*[0-9A-Fa-f]{2}\s*$")
 
 
 def _one_full():
-    files = sorted(DISASM.glob("*.ysc.full")) if DISASM.is_dir() else []
+    files = sorted(DISASM.glob("**/*.ysc.full")) if DISASM.is_dir() else []
     return files[0] if files else None
 
 
@@ -92,10 +92,15 @@ class AsmRoundTripTest(unittest.TestCase):
             if ins[f.start_index].enter_namelen > 0 and f not in sample:
                 sample.append(f)
                 break
-        checked = switches = named = 0
+        checked = switches = named = skipped = 0
         for f in sample:
             fb = y.code[f.start_offset:f.end_offset]
-            ysa = to_ysa(fb)  # base 0: internal jumps relative, calls absolute
+            try:
+                ysa = to_ysa(fb)  # base 0: internal jumps relative, calls absolute
+            except ValueError:
+                # branches into a neighbouring function -> not self-contained
+                skipped += 1
+                continue
             with self.subTest(func=f.name, off=f.start_offset, nbytes=len(fb)):
                 self.assertEqual(assemble_text(ysa), fb, "function round-trip failed")
             checked += 1
@@ -103,8 +108,10 @@ class AsmRoundTripTest(unittest.TestCase):
             switches += any(i.name == "SWITCH" for i in body)
             named += ins[f.start_index].enter_namelen > 0
         self.assertGreater(checked, 100, "expected a large function sample")
+        self.assertLess(skipped, checked // 5, "too many non-self-contained funcs")
         # informational: how much variety we covered
-        print(f"\n  [asm] sampled {checked} funcs, {switches} with SWITCH, {named} named")
+        print(f"\n  [asm] sampled {checked} funcs ({skipped} skipped), "
+              f"{switches} with SWITCH, {named} named")
 
 
 if __name__ == "__main__":

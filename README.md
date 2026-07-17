@@ -15,6 +15,41 @@ handful of leftovers for a quick manual check, runs in **~1 minute**, uses
 
 ---
 
+## TL;DR — a GTA update dropped, now what?
+
+Every GTA patch shifts **two** things you ship to Xenvious, both derived from the
+new build's decompiled scripts:
+
+- **`offsets.ini`** — the `Global_*` memory offsets — handled by **this** tool.
+- **`scrpatches.json`** — the runtime bytecode patches (native indices, call
+  addresses, injected *custom functions*) — handled by the tools in
+  [`scrpatches/`](scrpatches/).
+
+**The whole update, start to finish** — decompiled scripts and dumps are stored
+per build under `scripts/<build>/`, so you compare versions **by name**:
+
+```text
+  1  Fetch the new build      ./fetch_update.sh 1.73-3889
+                             → scripts/1.73-3889/  +  scrpatches/disasm/1.73-3889/   (or OpenIV, Step 1)
+
+  2  Update offsets           python3 tools/run_pipeline.py --new 1.73-3889
+                             → reports/offsets.migrated.ini
+
+  3  Update scrpatches        python3 scrpatches/check_patches.py     --new 1.73-3889     (what broke)
+                             python3 scrpatches/repair_scrpatches.py --new 1.73-3889
+                             → reports/scrpatches.repaired.json
+
+  4  Deploy to Xenvious       merge offsets + copy to backend & OfflineData → rebuild app
+```
+
+`--old` defaults to the **previous** build in `scripts/`. If your current
+`offsets.ini` lags a version (it is **not** the previous build), pass
+`--old <build>` explicitly — a wrong guess shows up instantly as a very low
+"migrated" count in the summary. You only ever hand-edit the small **REVIEW**
+lists the tools print. Each step is detailed below.
+
+---
+
 ## Requirements
 
 | Tool | Why | Install |
@@ -40,57 +75,37 @@ rg --version
 
 The updater compares two sets of decompiled `.c` scripts:
 
-- **`old/`** — the game version your current `offsets.ini` was built for
-- **`new/`** — the new game version you want to update to
+- **`scripts/<old-build>/`** — the build your current `offsets.ini` matches
+- **`scripts/<new-build>/`** — the new build you're updating to
 
-You only need **8 files** in each folder (the creator/launcher scripts). There are
-two ways to get them.
+Scripts live **per build**, so you never shuffle folders — the tools take builds
+**by name** (`--old`/`--new`). You only need the **8** creator/launcher scripts
+per build. Two ways to get them.
 
 ---
 
 #### Option A — Download them (recommended, no OpenIV needed)
 
 The community repo **[calamity-inc/GTA-V-Decompiled-Scripts](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts)**
-publishes the decompiled scripts (with native tables) for every GTA build and keeps
-the git history for older versions.
+publishes the decompiled `.c` scripts **and** the decrypted dumps (`.ysc.full`)
+for every GTA build, on its single rolling branch **`senpai`** (HEAD = latest).
 
-**First, check it's current:** open the repo and look at the latest commit on the
-`decompiled_scripts` folder — if it says your target build (e.g. *"Update for
-1.72-…"*), you're set. If it's behind your build, use Option B instead.
+**First, check it's current:** open the repo — the latest commit names the build
+(e.g. *"1.73-3889.0"*). If it's behind your build, use Option B.
 
-**Download the 8 files for the NEW version** — copy-paste this:
-
-```bash
-cd /opt/ysc-global-updater
-mkdir -p new
-base="https://raw.githubusercontent.com/calamity-inc/GTA-V-Decompiled-Scripts/master/decompiled_scripts"
-for f in fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creator \
-         fm_survival_creator fmmc_launcher public_mission_creator tuneables_processing; do
-  echo "-> $f.c"
-  curl -fSL "$base/$f.c" -o "new/$f.c"
-done
-```
-
-**For the OLD version:** you almost certainly already have `old/` — it's the build
-your current `offsets.ini` matches, so just reuse last time's files. If you really
-need to rebuild it, open the repo's
-[commit history for `decompiled_scripts`](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts/commits/master/decompiled_scripts),
-find the commit whose message matches your old build (e.g. *"Update for 1.71-…"*),
-copy its commit hash, and run the same loop with `master` → that hash and `new` → `old`:
+**Fetch that build** — one command grabs everything (offsets *and* scrpatches
+inputs) into the versioned store:
 
 ```bash
 cd /opt/ysc-global-updater
-mkdir -p old
-ref="PASTE_COMMIT_HASH_HERE"   # from the commit history, matching your old build
-base="https://raw.githubusercontent.com/calamity-inc/GTA-V-Decompiled-Scripts/$ref/decompiled_scripts"
-for f in fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creator \
-         fm_survival_creator fmmc_launcher public_mission_creator tuneables_processing; do
-  echo "-> $f.c"
-  curl -fSL "$base/$f.c" -o "old/$f.c"
-done
+./fetch_update.sh 1.73-3889          # → scripts/1.73-3889/ + scrpatches/disasm/1.73-3889/
+# an older build? pass its commit as a 2nd arg:
+#   ./fetch_update.sh 1.72-3788 0b47ae4
 ```
 
-When both folders are filled, **skip to [Step 2](#step-2--run-the-updater)**.
+That's it — no more `old/`/`new/` juggling. The tools reference builds by name;
+`--old` defaults to the previous build in `scripts/`. **Skip to
+[Step 2](#step-2--run-the-updater).**
 
 ---
 
@@ -129,23 +144,25 @@ a script decompiler that uses the current **native tables**.
 
 ![Step 2 — decompiler with native tables](docs/img/step2-decompiler.png)
 
-Then copy the decompiled `.c` files into `old/` (your current build) and `new/`
-(the new build):
+Then drop the decompiled `.c` files into the versioned store — one folder per
+build, labelled like calamity-inc does (e.g. `1.73-3889`):
 
 ```bash
-cp /path/to/dump_old/*.c  old/
-cp /path/to/dump_new/*.c  new/
+cp /path/to/dump_new/*.c  scripts/1.73-3889/
 ```
 
-> Only the 8 creator/launcher scripts are needed, but copying the whole dump is
-> fine — the updater selects the relevant ones automatically.
+> **scrpatches (Step 3) also needs the decrypted `.ysc.full` dumps** in
+> `scrpatches/disasm/<build>/`. OpenIV only gives raw `.ysc`, so use the GitHub
+> route (Option A) for those — self-decrypting is out of scope here.
 
 ### Step 2 — Run the updater
 
 One command does everything (select → migrate → summary):
 
 ```bash
-python3 tools/run_pipeline.py --old-dir old --new-dir new --offsets offsets.ini
+python3 tools/run_pipeline.py --new 1.73-3889          # --old = previous build by default
+# if your offsets.ini lags a version, name the old build explicitly:
+python3 tools/run_pipeline.py --old 1.71-3586 --new 1.73-3889
 ```
 
 You get a formatted summary at the end:
@@ -191,6 +208,59 @@ python3 tools/run_pipeline.py --old-dir old --new-dir new --offsets offsets.ini 
 > Tip: put the **full** new dump in `new/` (not just the 8 creator files). The
 > summary then also verifies globals that live in other scripts (e.g. the
 > `published_*` / `saved_*` block) and will not list them for review by mistake.
+
+---
+
+### Step 3 — Update the runtime patches (`scrpatches.json`)
+
+The bytecode patches in `scrpatches/data/scrpatches.json` (dev mode, cam fix, the
+injected *custom functions*, …) break the same way offsets do — native indices,
+call addresses and struct offsets move. These tools read the **decrypted** script
+dumps in `scrpatches/disasm/<build>/` that `fetch_update.sh` already pulled in
+Step 1 — so they compare by build name, no cache juggling.
+
+**3a — See what broke** (read-only):
+
+```bash
+python3 scrpatches/check_patches.py --new 1.73-3889
+```
+
+You get an **OK / BROKEN** list. BROKEN = a plain pattern whose instruction
+sequence changed (cam fix, precise templates, show stunt prop). For now these are
+regenerated by hand; auto-repair is on the roadmap.
+
+**3b — Repair the custom functions** (automatic):
+
+```bash
+python3 scrpatches/repair_scrpatches.py --new 1.73-3889   # → reports/scrpatches.repaired.json
+```
+
+Each injected payload embeds native indices, internal/external call addresses and
+struct strides; this rewrites them for the new build. The report lists every
+change and anything that needs review.
+
+> ⚠️ **Known gap (do Step 2 first):** payloads also embed *struct field offsets*
+> — the very values `offsets.ini` migrates (e.g. `3605 → 3838`). These are **not**
+> yet auto-migrated by the repair; cross-check them against your Step 2 result.
+> Wiring the two together is the next milestone.
+
+---
+
+### Step 4 — Deploy to Xenvious
+
+Both files live in **two** places, and neither is a blind copy:
+
+| Target | Path | Notes |
+|---|---|---|
+| **Backend** (what users fetch online) | `xenvious_ctr/…/web/resources/` | plaintext on disk; the backend AES-encrypts it on serve |
+| **App fallback** (embedded) | `Xenvious/…/OfflineData/` | compiled into the `.exe` → needs an **app rebuild** |
+
+- **`offsets.ini`** — `reports/offsets.migrated.ini` holds only the script-derived
+  offsets; the production file also has `[AOB]`, `[SESSION]`, `[VEHICLES]`, …
+  sections. **Merge** the new values into the full production file — don't
+  overwrite it.
+- **`scrpatches.json`** — `reports/scrpatches.repaired.json` is a full drop-in
+  (same 43 patches); copy it once the BROKEN base patterns from Step 3a are fixed.
 
 ---
 

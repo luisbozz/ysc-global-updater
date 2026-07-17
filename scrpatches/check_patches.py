@@ -15,24 +15,22 @@ Kategorien pro Patch (Haupt-Pattern, analog fuer jedes ``values``-Subpattern):
 - NOT_IN_OLD  : 0 alt                           -> Pattern matcht nicht mal den alten
                 Bytecode (falsche Alt-Version, Script-Variante oder totes Pattern).
 
-Die ``*.ysc.full`` werden bei Bedarf von calamity-inc geladen (git-refs unten) und
-in ``scrpatches/disasm/`` gecacht.
+Die ``*.ysc.full`` liegen versioniert unter ``scrpatches/disasm/<build>/`` (z.B.
+``disasm/1.73-3889/fm_lts_creator.ysc.full``); geladen werden sie mit
+``./fetch_update.sh <build>``.
 """
 import argparse
 import json
 import pathlib
 import re
-import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import versions  # noqa: E402  (repo-root helper: disasm/<build> resolution)
+
 DISASM = ROOT / "scrpatches" / "disasm"
 PATCHES = ROOT / "scrpatches" / "data" / "scrpatches.json"
-
-# calamity-inc/GTA-V-Decompiled-Scripts: entschluesselte Bytecode-Dumps.
-REF_OLD = "cffba34289c8239213a1421247516f76b72b823b"   # version zu der die patterns passen
-REF_NEW = "senpai"                                     # ziel-version (aktuell)
-RAW = "https://raw.githubusercontent.com/calamity-inc/GTA-V-Decompiled-Scripts"
 
 
 def aob_to_regex(pattern: str) -> "re.Pattern":
@@ -43,16 +41,14 @@ def aob_to_regex(pattern: str) -> "re.Pattern":
     return re.compile(out, re.DOTALL)
 
 
-def _fetch(script: str, ref: str, tag: str, _cache: dict = {}) -> bytes:
-    """``*.ysc.full`` laden (aus disasm/ oder von calamity-inc), gecacht."""
-    key = (script, tag)
+def _load(script: str, build: str, _cache: dict = {}) -> bytes:
+    """``<script>.ysc.full`` aus ``disasm/<build>/`` laden (gecacht)."""
+    key = (script, build)
     if key in _cache:
         return _cache[key]
-    path = DISASM / f"{script}.{tag}.ysc.full"
+    path = DISASM / build / f"{script}.ysc.full"
     if not path.is_file():
-        DISASM.mkdir(parents=True, exist_ok=True)
-        url = f"{RAW}/{ref}/scripts/{script}_ysc/{script}.ysc.full"
-        subprocess.run(["curl", "-sSL", "-o", str(path), url], check=True)
+        raise SystemExit(f"missing {path}\n  -> fetch it:  ./fetch_update.sh {build} <git-ref>")
     data = path.read_bytes()
     _cache[key] = data
     return data
@@ -74,7 +70,7 @@ def classify(n_old: int, n_new: int) -> str:
     return "AMBIG_NEW"
 
 
-def check(patches: list, ref_old: str, ref_new: str) -> list:
+def check(patches: list, old_build: str, new_build: str) -> list:
     """Pro Patch (und Subpattern) alt/neu-Treffer zaehlen + klassifizieren."""
     results = []
     for p in patches:
@@ -82,8 +78,8 @@ def check(patches: list, ref_old: str, ref_new: str) -> list:
         pat = p.get("pattern")
         if not script or not pat:
             continue
-        old = _fetch(script, ref_old, "old")
-        new = _fetch(script, ref_new, "new")
+        old = _load(script, old_build)
+        new = _load(script, new_build)
         ho, hn = _count(old, pat), _count(new, pat)
         entry = {
             "patch": p.get("patch_name", "?"), "script": script,
@@ -109,22 +105,30 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--patches", default=str(PATCHES))
-    ap.add_argument("--old-ref", default=REF_OLD)
-    ap.add_argument("--new-ref", default=REF_NEW)
+    ap.add_argument("--new", help="New build (e.g. 1.73-3889, 1.73, or 'latest'). "
+                                  "Default: newest folder in disasm/.")
+    ap.add_argument("--old", help="Old build the patterns match. Default: the build "
+                                  "right before --new.")
     ap.add_argument("--report-json", help="Optionaler JSON-Report.")
     ap.add_argument("--only-issues", action="store_true",
                     help="Nur Patches zeigen, die NICHT OK sind.")
     args = ap.parse_args()
 
+    new_build = versions.resolve(DISASM, args.new)
+    old_build = (versions.resolve(DISASM, args.old) if args.old
+                 else versions.previous(DISASM, new_build))
+    if not old_build:
+        raise SystemExit("no earlier build in disasm/ -- pass --old <build>")
+
     patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8"))
-    results = check(patches, args.old_ref, args.new_ref)
+    results = check(patches, old_build, new_build)
 
     order = ["BROKEN", "AMBIG_NEW", "AMBIG_OLD", "NOT_IN_OLD", "OK"]
     counts = {k: sum(1 for r in results if r["status"] == k) for k in order}
 
     bar = "=" * 78
     print("\n" + bar)
-    print(f"  SCRPATCHES HEALTH CHECK   (old={args.old_ref[:12]}  new={args.new_ref})")
+    print(f"  SCRPATCHES HEALTH CHECK   (old={old_build}  new={new_build})")
     print(bar)
     for k in order:
         print(f"  {k:11s}: {counts[k]:3d}")
