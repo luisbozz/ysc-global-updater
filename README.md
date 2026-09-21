@@ -24,8 +24,9 @@ One command runs the whole chain and asks before every step that writes
 something:
 
 ```bash
-python3 update_xenvious.py --new 1.74-4012
-python3 update_xenvious.py --new 1.74-4012 --dry-run   # report only
+python3 update_xenvious.py --new 1.74-4012                      # Legacy
+python3 update_xenvious.py --variant enhanced --new 1.74-1200   # Enhanced
+python3 update_xenvious.py --new 1.74-4012 --dry-run            # report only
 ```
 
 ```text
@@ -33,7 +34,7 @@ python3 update_xenvious.py --new 1.74-4012 --dry-run   # report only
  2  Migrate offsets       tools/run_pipeline.py
  3  Check/repair patterns scrpatches/update_patches.py
  4  Repair payloads       scrpatches/repair_scrpatches.py
- 5  Deploy                Xenvious/OfflineData/{offsets.ini,scrpatches.json}
+ 5  Deploy                Xenvious/OfflineData/<variant>/{offsets.ini,scrpatches.json}
  6  Rebuild               reminder only — OfflineData is compiled into the .exe
 ```
 
@@ -57,6 +58,91 @@ closer look or a non-default argument. Scripts are stored per build under
 `--old` defaults to the previous build in `scripts/`. If your `offsets.ini` lags
 a version, pass `--old <build>` explicitly — a wrong guess shows up immediately
 as a very low "migrated" count.
+
+## Legacy and Enhanced
+
+GTA V ships as two separate games that can be installed side by side. They share
+their script *content* — the same missions, the same creators, the same Online
+version — but they are compiled separately, so **no address is valid in both**.
+Offsets, AOB patterns and bytecode patches all have to exist twice.
+
+Builds are kept apart by a label prefix, and the tools never compare across it:
+
+```text
+scripts/1.73-3889/              Legacy   (calamity-inc)
+scripts/enhanced-1.73-1158/     Enhanced (acidlabsdev)
+```
+
+An unprefixed label means Legacy, so everything from before the split keeps its
+meaning. The two are numbered independently — Enhanced build 1158 is newer than
+Legacy build 3889 — which is why `versions.previous()` stays inside a variant.
+Without that, `--old` would default to the other game.
+
+| | Legacy | Enhanced |
+|---|---|---|
+| Upstream | [calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts) | [acidlabsdev](https://github.com/acidlabsdev/gtav-enhanced-scripts) |
+| Decompiled `.c` | yes | yes |
+| Decrypted `.ysc.full` | yes | **no** |
+| Offsets | migrated | migrated |
+| scrpatches | verified against bytecode | cannot be checked — shipped parked |
+| AOB patterns | complete | 2 of 17 derived |
+
+### What works for Enhanced
+
+**Offsets.** The migration is source-based, so it works the same for both. The
+first Enhanced run is bootstrapped from the freshly migrated Legacy result —
+the games share their script content, so that is the closest starting point
+that exists. Later runs go Enhanced-to-Enhanced like any other update.
+
+To check the result, score each ini against both corpora. Each one should fit
+its own game best; if it does not, `--old` named the wrong build:
+
+```bash
+python3 tools/score_corpus.py --ini reports/offsets.migrated.enhanced.ini \
+    --corpus scripts/enhanced-1.73-1158 --corpus scripts/1.73-3889
+```
+
+```text
+  reports/offsets.migrated.enhanced.ini
+    enhanced-1.73-1158          787/988  (79.7%)
+    1.73-3889                   709/988  (71.8%)
+```
+
+The absolute number is a floor, not a grade: offsets.ini also stores simplified
+forms that are correct but never appear literally in any corpus. Only the
+comparison between the two rows means anything.
+
+### What does not work for Enhanced
+
+**scrpatches.** Nobody publishes decrypted Enhanced dumps, so no pattern can be
+checked or derived. The Legacy patch definitions ship with `enabled: false` and
+a `note` saying why — dropping them would lose the payloads, which are the
+expensive part to reconstruct. Enabling one means verifying its pattern against
+Enhanced bytecode first.
+
+**AOB patterns.** These locate machine code and differ per build. Only
+`globalptr` and `localptr` have been derived so far; the other 15 ship **empty**
+rather than carrying their Legacy value. `GTA.HasPattern` treats an empty
+pattern as "not available for this build", logs it, and returns `IntPtr.Zero`.
+A wrong pattern would be worse: it scans, finds nothing, and yields a pointer
+computed from address zero.
+
+### The decompiler dialect
+
+The two corpora come from different builds of the decompiler, and the newer one
+prints the same code differently:
+
+```text
+Legacy                                 Enhanced
+Global_4718592.f_121958 == 6           *Global_4718592.f_128458 == 6
+StringCopy(&(Global_X.f_Y), ...)       TEXT_LABEL_ASSIGN_STRING(&Global_X.f_Y, ...)
+iVar2 = DATADICT_GET_DICT(iVar1, ...)  dict = DATADICT_GET_DICT(fileDict, ...)
+```
+
+None of this is a game difference, but every resolver matches on source text, so
+left alone it looks as if every global had moved. `tools/dialect.py` normalises
+the dereference star at read time; the anchors in `verified_anchors.py` accept
+both helper spellings. Local variable names carry no meaning for the resolvers.
 
 ## Step 1 — Fetch the build
 
@@ -202,6 +288,8 @@ fresh scan.
 | `migrate_offsets.py` | migrates one `offsets.ini` |
 | `deploy_offsets.py` | merges a migrated file into the production inis |
 | `validate.py` | scores a result against a known-good `offsets.ini` |
+| `score_corpus.py` | scores a result by literal presence in a script corpus |
+| `dialect.py` | normalises the two decompiler spellings before matching |
 | `run_pipeline.py` | offset-side entry point plus the summary |
 | `../update_xenvious.py` | full update chain, offsets + scrpatches + deploy |
 | `infer_offsets.py` | legacy pattern/context matcher |

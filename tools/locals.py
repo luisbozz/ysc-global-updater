@@ -24,6 +24,7 @@ from collections import Counter, defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from tools.structural import _align_runs  # noqa: E402
+from tools.dialect import read_source_lines
 
 # Offset-Mode-Suffix -> Creator-Datei. mission teilt SICH ALLE Local-Werte mit lts
 # (worker/cam/pre/test/refresh identisch), nutzt also dasselbe Script.
@@ -68,7 +69,7 @@ def _file_state(directory, name, cache):
     if not p.is_file():
         cache[key] = None
         return None
-    lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+    lines = read_source_lines(p)
     anchor_freq: Counter = Counter()
     anchor_lines: dict = defaultdict(list)
     local_pos: list = []             # sortierte (lineidx, localidx)

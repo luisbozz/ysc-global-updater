@@ -239,5 +239,56 @@ class VerifiedAnchorsRealDataTest(unittest.TestCase):
                 self.assertIsNone(rebase_value(value, rules))
 
 
+REAL_ENHANCED = ROOT / "scripts" / "enhanced-1.73-1158"
+
+
+@unittest.skipUnless(REAL_NEW.is_dir() and REAL_ENHANCED.is_dir(),
+                     "scripts/1.73-3889 or scripts/enhanced-1.73-1158 dump missing")
+class CrossVariantAnchorTest(unittest.TestCase):
+    """Legacy 1.73 -> Enhanced 1.73, verified by hand.
+
+    Each expected value was confirmed in the Enhanced corpus by its context,
+    not by a numeric delta: f_128458 carries the same run of type constants
+    (6, 7, 18..22, 24, 25, 30, 31) that f_121958 carries in Legacy, and
+    f_128499 sits in the same DATAARRAY_ADD_INT call with the same /*5*/
+    dimension. Those constants are game content and do not move with a build."""
+
+    def test_mission_type_field_moved(self):
+        for name in ("OFFSET_cps_type", "OFFSET_racetype"):
+            self.assertEqual(resolve(name, REAL_NEW, REAL_ENHANCED),
+                             "Global_4718592.f_128458")
+
+    def test_adlc_array_moved(self):
+        self.assertEqual(resolve("OFFSET_adlc", REAL_NEW, REAL_ENHANCED),
+                         "Global_4718592.f_128499")
+
+    def test_hide_creator_menu_survives_the_paren_dialect(self):
+        # The newer decompiler drops the redundant grouping parentheses. An
+        # anchor that required them would return None here, the offset would
+        # keep its Legacy value, and the report would show no change at all.
+        self.assertEqual(resolve("OFFSET_hide_creator_menu", REAL_NEW, REAL_ENHANCED),
+                         "Global_24586.f_9243")
+
+    def test_check_creator_declines_rather_than_guesses(self):
+        # Its anchor is a block of local declarations, and the newer decompiler
+        # names locals differently. Returning None sends the offset to REVIEW,
+        # which is the correct outcome: there is nothing here to verify against.
+        self.assertIsNone(resolve("OFFSET_check_creator", REAL_NEW, REAL_ENHANCED))
+
+    def test_array_bases_did_not_move_between_the_variants(self):
+        # published_*, saved_* and gbtpi/gbtpp resolve to the same base in both
+        # games. The rule list is therefore empty, and every leaf correctly
+        # stays as it is -- this guards against a resolver that "finds" a move
+        # where there is none.
+        self.assertEqual(resolve_moved_array_bases(REAL_NEW, REAL_ENHANCED), [])
+
+    def test_array_bases_still_resolve_on_each_side(self):
+        from tools.verified_anchors import _gbtp_base, _published_base, _saved_base
+        for corpus in (REAL_NEW, REAL_ENHANCED):
+            self.assertEqual(_saved_base(corpus), ("1015489", "33"))
+            self.assertEqual(_published_base(corpus), ("995355", "4"))
+            self.assertEqual(_gbtp_base(corpus), ("3838", "26988", "6497"))
+
+
 if __name__ == "__main__":
     unittest.main()

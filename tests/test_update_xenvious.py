@@ -28,15 +28,27 @@ class TestDiffLines(unittest.TestCase):
 class TestDirty(unittest.TestCase):
     def test_paths_with_spaces_survive(self):
         # git quotes such names unless -z is used; the quoted form would never
-        # match EXPECTED_DIRTY and would block the deploy on a clean tree.
+        # be recognised and would block the deploy on a clean tree.
         payload = " M Xenvious/GTA.cs\0 M Xenvious/Creator Classes/ScrPatchesRunner.cs\0"
         with mock.patch("subprocess.run",
                         return_value=mock.Mock(returncode=0, stdout=payload)):
             found = ux._dirty(pathlib.Path("/nowhere"))
         self.assertEqual(found, ["Xenvious/GTA.cs",
                                  "Xenvious/Creator Classes/ScrPatchesRunner.cs"])
-        for path in found:
-            self.assertIn(path, ux.EXPECTED_DIRTY)
+
+    def test_a_rename_yields_both_paths_intact(self):
+        # With -z a rename is two records: "R  <new>" then the old path alone,
+        # with no status prefix. Stripping three characters from that second
+        # record would report a path that does not exist.
+        payload = ("R  Xenvious/OfflineData/legacy/offsets.ini\0"
+                   "Xenvious/OfflineData/offsets.ini\0"
+                   " M Xenvious/GTA.cs\0")
+        with mock.patch("subprocess.run",
+                        return_value=mock.Mock(returncode=0, stdout=payload)):
+            found = ux._dirty(pathlib.Path("/nowhere"))
+        self.assertEqual(found, ["Xenvious/OfflineData/legacy/offsets.ini",
+                                 "Xenvious/OfflineData/offsets.ini",
+                                 "Xenvious/GTA.cs"])
 
     def test_no_git_repo_reports_nothing_dirty(self):
         with mock.patch("subprocess.run",
@@ -54,25 +66,53 @@ class TestDeployGate(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def test_broken_patterns_block_the_deploy(self):
-        written = ux.step_deploy(self.xen, "1.71-3586", "1.73-3889",
+        written = ux.step_deploy("legacy", self.xen, "1.71-3586", "1.73-3889",
                                  broken=3, dry_run=True, auto_yes=True)
         self.assertFalse(written)
 
     def test_missing_target_blocks_the_deploy(self):
         # OfflineData exists but is empty: nothing to merge into.
-        written = ux.step_deploy(self.xen, "1.71-3586", "1.73-3889",
+        written = ux.step_deploy("legacy", self.xen, "1.71-3586", "1.73-3889",
                                  broken=0, dry_run=True, auto_yes=True)
         self.assertFalse(written)
 
 
-class TestExpectedDirty(unittest.TestCase):
-    def test_lists_both_data_files_and_both_csharp_files(self):
-        # The enabled flag only works if the C# change ships with the data, so
-        # both C# files count as part of this update, not as foreign edits.
-        self.assertIn("Xenvious/OfflineData/offsets.ini", ux.EXPECTED_DIRTY)
-        self.assertIn("Xenvious/OfflineData/scrpatches.json", ux.EXPECTED_DIRTY)
-        self.assertIn("Xenvious/GTA.cs", ux.EXPECTED_DIRTY)
-        self.assertIn("Xenvious/Creator Classes/ScrPatchesRunner.cs", ux.EXPECTED_DIRTY)
+class TestRollbackScope(unittest.TestCase):
+    def test_the_scope_is_the_folder_the_rollback_command_touches(self):
+        # `git checkout -- Xenvious/OfflineData` restores exactly this subtree,
+        # so nothing outside it can be lost by a deploy.
+        for variant in ("legacy", "enhanced"):
+            for name in ("offsets.ini", "scrpatches.json"):
+                self.assertTrue(
+                    ux.in_rollback_scope(f"Xenvious/OfflineData/{variant}/{name}"))
+
+    def test_source_files_are_outside_the_scope(self):
+        for path in ("Xenvious/GTA.cs", "Xenvious/MainWindow.xaml.cs",
+                     "Xenvious/Xenvious.csproj"):
+            self.assertFalse(ux.in_rollback_scope(path),
+                             "warning about a file the rollback never touches "
+                             "only teaches people to ignore the warning")
+
+
+class TestVariantPaths(unittest.TestCase):
+    def test_each_variant_has_its_own_migration_artifacts(self):
+        # One shared output path would let a Legacy run overwrite the Enhanced
+        # result, and the next deploy would ship Legacy offsets as Enhanced.
+        self.assertNotEqual(ux.migrated_ini("legacy"), ux.migrated_ini("enhanced"))
+        self.assertNotEqual(ux.migrate_report("legacy"), ux.migrate_report("enhanced"))
+
+    def test_legacy_keeps_the_established_file_names(self):
+        self.assertEqual(ux.migrated_ini("legacy").name, "offsets.migrated.ini")
+        self.assertEqual(ux.migrate_report("legacy").name, "migrate-report.json")
+
+    def test_parking_disables_every_patch_and_drops_build_markers(self):
+        payload = '[{"patch_name": "x", "enabled": true, "derived_for": "1.73-3889"}]'
+        parked = json.loads(ux._park_all(payload))
+        self.assertEqual(len(parked), 1)
+        self.assertIs(parked[0]["enabled"], False)
+        self.assertNotIn("derived_for", parked[0],
+                         "a marker naming a Legacy build is meaningless for Enhanced")
+        self.assertIn("note", parked[0])
 
 
 class TestScriptLists(unittest.TestCase):

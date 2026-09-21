@@ -24,6 +24,7 @@ import pathlib
 import re
 import sys
 from collections import defaultdict
+from tools.dialect import read_source
 
 
 CREATE_RE = re.compile(
@@ -552,7 +553,7 @@ def main() -> int:
         if not path.is_file():
             print(f"[WARN] fehlt: {path}", file=sys.stderr)
             continue
-        per_file[name] = extract_file(path.read_text(encoding="utf-8", errors="ignore"))
+        per_file[name] = extract_file(read_source(path))
 
     merged = merge(per_file)
     resolved = sum(1 for m in merged if m["path"])

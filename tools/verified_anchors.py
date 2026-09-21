@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+from tools.dialect import read_source
 
 # offset name -> (regex with the numeric Global_/.f_ parts captured, format template)
 _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
@@ -42,12 +43,46 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
     # OFFSET_hide_creator_menu: part of the native-call chain deciding whether
     # the pause/creator menu may show. Anchored on the surrounding native names
     # (stable API surface) rather than the Global_ numbers (which shift).
+    #
+    # The closing parenthesis after each term is optional: the newer decompiler
+    # prints this chain without the redundant grouping the older one emits.
+    # Requiring it would silence the anchor on an Enhanced corpus, and the
+    # offset would fall through to REVIEW with its old value intact -- which
+    # looks like "nothing changed" and is the one failure mode worth avoiding.
     "OFFSET_hide_creator_menu": (
         re.compile(
-            r"NETWORK::IS_COMMERCE_STORE_OPEN\(\)\)\s*\|\|\s*Global_\d+\)\s*\|\|\s*"
-            r"Global_(\d+)\.f_(\d+)\)\s*\|\|\s*HUD::IS_WARNING_MESSAGE_ACTIVE\(\)"
+            r"NETWORK::IS_COMMERCE_STORE_OPEN\(\)\)?\s*\|\|\s*Global_\d+\)?\s*\|\|\s*"
+            r"Global_(\d+)\.f_(\d+)\)?\s*\|\|\s*HUD::IS_WARNING_MESSAGE_ACTIVE\(\)"
         ),
         "Global_{0}.f_{1}",
+    ),
+    # OFFSET_cps_type / OFFSET_racetype: the creator's mission-type field, under
+    # the tuneables root. It has no DATADICT key, so nothing in the semantic or
+    # structural path reaches it. What does pin it is the run of literal type
+    # constants it is compared against: those are game content and survive a
+    # build, while the field number does not. Two terms of the chain are enough
+    # to be unique in both corpora; the back-reference keeps it to one field.
+    "OFFSET_cps_type": (
+        re.compile(
+            r"Global_4718592\.f_(\d+) == 6 \|\| Global_4718592\.f_\1 == 7"
+        ),
+        "Global_4718592.f_{0}",
+    ),
+    # Same field, second name.
+    "OFFSET_racetype": (
+        re.compile(
+            r"Global_4718592\.f_(\d+) == 6 \|\| Global_4718592\.f_\1 == 7"
+        ),
+        "Global_4718592.f_{0}",
+    ),
+    # OFFSET_adlc: a 2D tuneable array written into a data file. The native plus
+    # the literal /*5*/ outer dimension is unique under this root in both
+    # corpora; the field number itself moves.
+    "OFFSET_adlc": (
+        re.compile(
+            r"DATAARRAY_ADD_INT\([^;]{0,40}, Global_4718592\.f_(\d+)\[[^\]]*/\*5\*/\]\["
+        ),
+        "Global_4718592.f_{0}",
     ),
     # OFFSET_vsbsout: the ini stores the BASE field of a small literal-index int
     # array (vsclout/vsthout/vsenout/vshwout/vstgout/vsbsout share one array,
@@ -67,7 +102,7 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
 def _matches(directory: pathlib.Path, pattern: re.Pattern, template: str) -> set:
     values: set = set()
     for path in sorted(directory.glob("*.c")):
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = read_source(path)
         for m in pattern.finditer(text):
             values.add(template.format(*m.groups()))
     return values
@@ -143,7 +178,7 @@ def _actor_weapon_slot_matches(directory: pathlib.Path) -> dict:
         pattern = _actor_weapon_slot_key_pattern(key)
         found = set()
         for path in sorted(directory.glob("*.c")):
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = read_source(path)
             for m in pattern.finditer(text):
                 found.add((int(m.group(1)), int(m.group(2)), int(m.group(3))))
         if len(found) == 1:
@@ -197,12 +232,25 @@ def resolve_actor_weapon_slot_family(old_dir: pathlib.Path, new_dir: pathlib.Pat
 # Every anchor below must match exactly ONE base in each corpus, otherwise the
 # family is dropped (a silent guess here would ship wrong offsets to users).
 
+# The two corpora are produced by different builds of the GTA V script
+# decompiler, and the newer one (used for the Enhanced dumps) writes the same
+# code differently:
+#
+#   Legacy    StringCopy(&(Global_1015489.f_33[iVar3 /*95*/].f_22), ...)
+#   Enhanced  TEXT_LABEL_ASSIGN_STRING(&Global_1015489.f_33[i /*95*/].f_22, ...)
+#
+# Two things changed: the string-assign helper was renamed, and the redundant
+# parentheses around an address-of expression were dropped. Neither is a game
+# difference, so the anchors accept both spellings; requiring one dialect would
+# silently drop every family on the other side of the split.
+_STR_ASSIGN = r"(?:StringCopy|TEXT_LABEL_ASSIGN_STRING)"
+
 # saved_*: the one place the block is written from UGC metadata. The index is a
 # plain local (``[iVar3 /*95*/]``); the sibling array that shares this call
 # shape is indexed by a parameter deref (``[uParam0->f_8 /*95*/]``), so
 # requiring a bare identifier between the brackets picks exactly one.
 _SAVED_BASE_RE = re.compile(
-    r"StringCopy\(&\(Global_(\d+)\.f_(\d+)\[[A-Za-z_]\w*\s*/\*95\*/\]\.f_22\),\s*"
+    rf"{_STR_ASSIGN}\(&\(?Global_(\d+)\.f_(\d+)\[[A-Za-z_]\w*\s*/\*95\*/\]\.f_22\)?,\s*"
     r"NETWORK::UGC_GET_CONTENT_NAME"
 )
 
@@ -215,7 +263,7 @@ _PUBLISHED_ROOT_RE = re.compile(
     r"NETWORK::NETWORK_START_USER_CONTENT_PERMISSIONS_CHECK"
 )
 _PUBLISHED_ARRAY_RE = re.compile(
-    r"MISC::ARE_STRINGS_EQUAL\(&\(Global_(\d+)\.f_(\d+)\[[^\]]*/\*95\*/\]\),\s*&\("
+    r"MISC::ARE_STRINGS_EQUAL\(&\(?Global_(\d+)\.f_(\d+)\[[^\]]*/\*95\*/\]\)?,\s*&\(?"
 )
 
 # gbtpi/gbtpp: a 2D array (``f_OUTER[..][13][3]``) under the tuneables root.
@@ -231,7 +279,7 @@ def _sole(directory: pathlib.Path, pattern: re.Pattern, build) -> str | None:
     """The single value ``build(match)`` yields across the corpus, else None."""
     found = set()
     for path in sorted(directory.glob("*.c")):
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = read_source(path)
         for m in pattern.finditer(text):
             found.add(build(m))
     return next(iter(found)) if len(found) == 1 else None
@@ -241,7 +289,7 @@ def _published_base(directory: pathlib.Path) -> str | None:
     roots = set()
     arrays = {}
     for path in sorted(directory.glob("*.c")):
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = read_source(path)
         for m in _PUBLISHED_ROOT_RE.finditer(text):
             roots.add(m.group(1))
         for m in _PUBLISHED_ARRAY_RE.finditer(text):

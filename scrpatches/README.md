@@ -320,6 +320,35 @@ health check is clean and the repair report has no review items.
 Unlike `offsets.ini` there is no merge step: the file has no hand-maintained
 sections, so it is replaced wholesale.
 
+It goes to `Xenvious/OfflineData/legacy/scrpatches.json`, next to the Enhanced
+copy. `update_xenvious.py` does the copy as part of step 5; nothing takes
+effect until the app is rebuilt, because OfflineData is compiled into the exe.
+
+## Enhanced
+
+These patches are Legacy only.
+
+A scrpatch is an AOB pattern over the *compiled bytecode* of a script. GTA V
+Enhanced is a separate compile of the same scripts, so the instruction stream
+differs: a Legacy pattern either misses, or -- worse -- matches an unrelated
+site and the patch writes into the wrong place.
+
+Checking a pattern needs the decrypted `*.ysc.full` dumps, and nobody publishes
+them for Enhanced. [acidlabsdev](https://github.com/acidlabsdev/gtav-enhanced-scripts)
+has the decompiled `.c` (which is what the offset side needs) but no bytecode.
+So for Enhanced there is nothing to check a pattern against, and nothing to
+derive a new one from.
+
+`Xenvious/OfflineData/enhanced/scrpatches.json` therefore ships every patch with
+`"enabled": false` and a `note` saying why. The definitions are kept rather than
+dropped because each one carries the payload and the intent, which is the
+expensive part to reconstruct. `update_xenvious.py --variant enhanced` skips
+steps 3 and 4 and says so.
+
+To enable one, you need Enhanced bytecode: dump the script yourself (see the
+decompiler route below), derive the pattern against it, and set `enabled` to
+true for that entry only. Until then, parked is the honest state.
+
 ## Known gaps
 
 **Embedded struct field offsets are not migrated.** Injected payloads reference

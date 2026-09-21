@@ -99,6 +99,9 @@ def main() -> int:
     p.add_argument("--expect", help="A known-good target offsets.ini to score against (optional).")
     p.add_argument("--keep-list", default="reports/sources.keep.txt")
     p.add_argument("--out", default="reports/offsets.migrated.ini")
+    p.add_argument("--report-json", default="reports/migrate-report.json",
+                   help="Where the detailed report goes. Give a separate path per "
+                        "variant so a second run does not overwrite the first.")
     p.add_argument("--infer", action="store_true",
                    help="Also run the slow infer context-matcher for the last gaps (optional, minutes).")
     args = p.parse_args()
@@ -130,7 +133,7 @@ def main() -> int:
         "migrate_offsets.py", "--ini", args.offsets,
         "--old-dir", args.old_dir, "--new-dir", args.new_dir,
         "--keep-list", args.keep_list, "--out", args.out,
-        "--report-json", "reports/migrate-report.json", "--structural",
+        "--report-json", args.report_json, "--structural",
     ]
     if args.infer:
         migrate_args.append("--fallback")
@@ -146,7 +149,7 @@ def main() -> int:
     else:
         print("\n(STEP 3/3 validation skipped -- no --expect given)")
 
-    print_summary(rel("reports/migrate-report.json"), rel(args.out), rel(args.new_dir))
+    print_summary(rel(args.report_json), rel(args.out), rel(args.new_dir))
     return 0
 
 

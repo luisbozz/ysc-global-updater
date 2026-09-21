@@ -20,6 +20,7 @@ import pathlib
 import re
 from collections import defaultdict
 
+from tools.dialect import read_source_lines
 from tools.extract_globals import (  # noqa: E402
     FUNC_CALL_LINE_RE,
     LabelState,
@@ -54,7 +55,7 @@ def build_key_map(directory: str, keep: tuple = ()) -> dict[str, str]:
         if not path.is_file():
             continue
         labels = LabelState()
-        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        for line in read_source_lines(path):
             labels.feed(line)
             m = FUNC_CALL_LINE_RE.search(line)
             if not m or "Global_" not in m.group(2):
