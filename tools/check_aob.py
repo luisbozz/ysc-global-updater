@@ -35,17 +35,10 @@ import versions  # noqa: E402
 
 PROCESS = {versions.LEGACY: "GTA5", versions.ENHANCED: "GTA5_Enhanced"}
 
-# Patterns the shipped C# never scans. They are read out of the ini into a
-# field and then used by nothing, so whether they still match is irrelevant.
-# Listed here so a run does not report work that does not exist.
-UNUSED = {
-    "presets": "read into AOB_presets, never scanned",
-    "props": "read into AOB_props, never scanned",
-    "props_new": "read into AOB_props_new, never scanned",
-    "creator_menu": "read into AOB_menu, never scanned",
-    "blipptr": "getBlipPointer is never called",
-    "checkcreatorptr": "getCheckCreatorPointer only from a commented-out line",
-}
+# Patterns the shipped C# never scans. Kept as a list rather than deleted from
+# the tool: if one reappears in an ini, saying why it does nothing beats
+# silently reporting it as broken and sending someone to re-derive it.
+UNUSED = {}
 
 # Patterns that legitimately match more than once. The scan takes the lowest
 # address, and for these that is the right site.

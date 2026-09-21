@@ -58,8 +58,21 @@ class RegexTest(unittest.TestCase):
 class KnownStateTest(unittest.TestCase):
     def test_unused_patterns_are_documented_with_a_reason(self):
         # The point of the list is that nobody re-derives a pattern nothing uses.
+        # It is empty now that the dead entries were removed from the inis, and
+        # any future entry still has to say why it does nothing.
         for name, why in UNUSED.items():
             self.assertTrue(why.strip(), f"{name} has no reason given")
+
+    def test_the_shipped_inis_carry_no_unscanned_pattern(self):
+        if not SHIPPED.is_dir():
+            self.skipTest("no Xenvious checkout")
+        for variant in ("legacy", "enhanced"):
+            aob = aob_section((SHIPPED / variant / "offsets.ini").read_text(
+                encoding="utf-8", errors="replace"))
+            for dead in ("presets", "props", "props_new", "creator_menu",
+                         "blipptr", "checkcreatorptr"):
+                self.assertNotIn(dead, aob,
+                                 f"{variant}: {dead} is read by nothing")
 
     def test_the_ambiguous_exception_is_narrow(self):
         # Every other multi-hit pattern must still be reported as work.
