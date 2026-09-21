@@ -292,3 +292,104 @@ class CrossVariantAnchorTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+CONTEXT_OLD = ROOT / "scripts" / "1.71-3586" / "context" / "maintransition.c"
+CONTEXT_NEW = ROOT / "scripts" / "1.73-3889" / "context" / "maintransition.c"
+
+
+class ContextOffsetsUnitTest(unittest.TestCase):
+    """The context resolver, on text rather than the real corpus."""
+
+    def _write(self, old_text: str, new_text: str):
+        from tools.verified_anchors import resolve_context_offsets
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = pathlib.Path(td.name)
+        for name, text in (("old", old_text), ("new", new_text)):
+            (root / name / "context").mkdir(parents=True)
+            (root / name / "context" / "maintransition.c").write_text(
+                text, encoding="utf-8")
+        return resolve_context_offsets(root / "old", root / "new")
+
+    def test_a_missing_context_script_resolves_nothing(self):
+        from tools.verified_anchors import resolve_context_offsets
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            (root / "old").mkdir()
+            (root / "new").mkdir()
+            self.assertEqual(resolve_context_offsets(root / "old", root / "new"), {})
+
+    def test_both_sides_are_reported_not_just_the_new_one(self):
+        old = "if (Global_100 == 0 || Global_99 == 0)\n"
+        new = "if (Global_200 == 0 || Global_199 == 0)\n"
+        got = self._write(old, new)
+        self.assertEqual(got["OFFSET_launch_creator_local_3"],
+                         ("Global_100", "Global_200"))
+
+    def test_an_ambiguous_anchor_is_dropped(self):
+        # Two matches means the anchor no longer identifies one global, and a
+        # guess here would write a wrong address into production.
+        old = "if (Global_100 == 0 || Global_99 == 0)\n"
+        new = ("if (Global_200 == 0 || Global_199 == 0)\n"
+               "if (Global_300 == 0 || Global_299 == 0)\n")
+        self.assertNotIn("OFFSET_launch_creator_local_3", self._write(old, new))
+
+    def test_a_vanished_anchor_is_dropped(self):
+        old = "if (Global_100 == 0 || Global_99 == 0)\n"
+        self.assertNotIn("OFFSET_launch_creator_local_3", self._write(old, "nothing\n"))
+
+    def test_the_state_field_anchor_needs_all_three_constants(self):
+        old = "if ((Global_10 != 4 && Global_10 != 5) && Global_10 != 7)\n"
+        new = "if ((Global_20 != 4 && Global_20 != 5) && Global_20 != 7)\n"
+        self.assertEqual(self._write(old, new)["OFFSET_launch_creator_local_5"],
+                         ("Global_10", "Global_20"))
+        partial = "if ((Global_20 != 4 && Global_20 != 5) && Global_20 != 9)\n"
+        self.assertNotIn("OFFSET_launch_creator_local_5", self._write(old, partial))
+
+    def test_the_getter_run_needs_the_same_count_on_both_sides(self):
+        # A restructured script with a different number of runs must not be
+        # aligned by position; the last run would then be a different one.
+        def runs(*groups):
+            out = []
+            for base in groups:
+                for g in (base + 1, base, base - 1):
+                    out.append(f"var f()\n{{\n\treturn Global_{g};\n}}\n")
+            return "".join(out)
+        got = self._write(runs(100, 500), runs(200, 600))
+        self.assertEqual(got["OFFSET_transitionState"], ("Global_500", "Global_600"))
+        self.assertNotIn("OFFSET_transitionState",
+                         self._write(runs(100, 500), runs(200, 600, 900)))
+
+
+@unittest.skipUnless(CONTEXT_OLD.is_file() and CONTEXT_NEW.is_file(),
+                     "context/maintransition.c missing for 1.71-3586 or 1.73-3889")
+class ContextOffsetsRealDataTest(unittest.TestCase):
+    """The creator launch sequence, 1.71 -> 1.73.
+
+    Each value was derived by hand first and cross-checked: 33282 -> 33816 by
+    its 3-to-0 / 0-to-3 usage swap, 1574943 -> 1574944 by an identical call
+    expression next to IS_PLAYER_SWITCH_IN_PROGRESS, 1575013 -> 1575021 by the
+    4/5/7 comparison, 2696496 -> 2697030 by a getter run that shifts wholesale
+    by +534. The 1574943 case is the reason the old value is checked too: that
+    number still exists in 1.73, but as a different variable with 34 call sites."""
+
+    EXPECTED = {
+        "OFFSET_launch_creator_local_3": ("Global_33282", "Global_33816"),
+        "OFFSET_launch_creator_local_4": ("Global_1574943", "Global_1574944"),
+        "OFFSET_launch_creator_local_5": ("Global_1575013", "Global_1575021"),
+        "OFFSET_transitionState": ("Global_2696496", "Global_2697030"),
+    }
+
+    def test_resolves_the_launch_sequence(self):
+        from tools.verified_anchors import resolve_context_offsets
+        got = resolve_context_offsets(CONTEXT_OLD.parents[1], CONTEXT_NEW.parents[1])
+        self.assertEqual(got, self.EXPECTED)
+
+    def test_the_old_values_are_the_ones_offsets_ini_still_holds(self):
+        import re
+        ini = (ROOT / "offsets.ini").read_text(encoding="utf-8", errors="replace")
+        for name, (before, _) in self.EXPECTED.items():
+            m = re.search(rf'^{name}\s*=\s*"([^"]*)"', ini, re.M)
+            self.assertIsNotNone(m, f"{name} missing from offsets.ini")
+            self.assertEqual(m.group(1), before)

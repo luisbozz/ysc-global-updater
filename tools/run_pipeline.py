@@ -70,13 +70,31 @@ def print_summary(report_path: pathlib.Path, out_path: pathlib.Path, new_dir: pa
     print(f"  [ OK ]     migrated automatically  : {migrated}")
     print(f"  [ OK ]     unchanged / still valid : {unchanged + len(stable)}")
     print(f"  [ -- ]     static constants        : {static}   (hex / coords, not script offsets)")
+    # Split the kept-on-a-dead-path entries. Only the semantic *path* is gone
+    # for most of them; the field itself is still in the new scripts, which is
+    # the best evidence available that the value is still right. The ones whose
+    # field vanished as well are the ones that actually need a look.
+    dead_all = data.get("kept_on_dead_path", [])
+    skel = _new_skeletons(new_dir)
+    dead = [e for e in dead_all if _skeleton(e["value"]) not in skel]
+    dead_ok = len(dead_all) - len(dead)
     print(f"  [REVIEW]   need a manual look      : {len(review)}")
+    if dead_ok:
+        print(f"  [ OK ]     path gone, field still there : {dead_ok}")
+    if dead:
+        print(f"  [STALE ]   field gone from the new build : {len(dead)}")
     if review:
         print("-" * 72)
         print("  These offsets changed but could NOT be resolved automatically.")
         print("  Open the result file and set them by hand:")
         for e in sorted(review, key=lambda x: x["offset"]):
             print(f"      {e['offset']:<34} old = {e['value']}")
+    if dead:
+        print("-" * 72)
+        print("  These offsets name a field the new build does not have at all.")
+        print("  Their value was kept unchanged, which is a guess, not a result:")
+        for e in sorted(dead, key=lambda x: x["offset"]):
+            print(f"      {e['offset']:<34} still = {e['value']}")
     print(bar)
     if not review:
         print("  Everything resolved -- nothing left to do by hand.")

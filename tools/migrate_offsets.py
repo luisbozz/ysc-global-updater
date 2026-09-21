@@ -192,6 +192,38 @@ def postprocess_families(migrated_text: str, ini_text: str, struct_families: tup
                 fixes[n] = corrected
                 notes.append((n, new[n], corrected))
 
+        # (a2) Blatt-Ausreisser: Root und Stride passen zur Familie, aber die
+        # erste .f_N-Ebene widerspricht dem, worauf die Geschwister sich einigen.
+        # Kommt vor, wenn in den neuen Struct ein Feld eingefuegt wurde und ein
+        # einzelnes Mitglied ueber einen anderen Pfad migriert wurde: ddblip_frul
+        # ging auf f_59, waehrend clr/spri/sbr/sbhr einstimmig f_58 -> f_60
+        # sagen. Ohne diesen Schritt bleibt genau dieses eine Mitglied falsch.
+        leaf_votes: dict = {}
+        for _n, orr, _os, oleaf, nrr, _ns, nleaf in arr:
+            if orr != cons_old_root or nrr != cons_new_root:
+                continue
+            lo, ln_ = re.match(r"\.f_(\d+)", oleaf or ""), re.match(r"\.f_(\d+)", nleaf or "")
+            if lo and ln_:
+                leaf_votes.setdefault(int(lo.group(1)), Counter())[int(ln_.group(1))] += 1
+        for n, orr, _os, oleaf, nrr, nstride, nleaf in arr:
+            if orr != cons_old_root or nrr != cons_new_root or n in fixes:
+                continue
+            lo, ln_ = re.match(r"\.f_(\d+)(.*)$", oleaf or ""), re.match(r"\.f_(\d+)", nleaf or "")
+            if not (lo and ln_):
+                continue
+            votes = leaf_votes.get(int(lo.group(1)))
+            if not votes:
+                continue
+            winner, count = votes.most_common(1)[0]
+            # A single sibling is not a consensus, and a tie is not either.
+            if count < 2 or list(votes.values()).count(count) > 1:
+                continue
+            if int(ln_.group(1)) == winner:
+                continue
+            corrected = f"{cons_new_root}[i /*{nstride}*/].f_{winner}{lo.group(2)}"
+            fixes[n] = corrected
+            notes.append((n, new[n], corrected))
+
         # (b) <fam>_number / <fam>_NEXT etc.: Skalar mit Familien-Root-Delta.
         of, nf = _root_field(cons_old_root), _root_field(cons_new_root)
         if of is not None and nf is not None:
@@ -429,7 +461,9 @@ def migrate_text(ini_text: str, old_rev: dict, new_fwd: dict, fallback=None,
                  struct_families: tuple = (), helper_names=None,
                  unresolved: list = None, loose=None, skip_families: tuple = (),
                  local_resolver=None, field_resolver=None,
-                 local_field_resolver=None, anchor_map: dict = None) -> tuple[str, dict, list]:
+                 local_field_resolver=None, anchor_map: dict = None,
+                 removed_paths: list = None) -> tuple[str, dict, list]:
+    removed_paths = [] if removed_paths is None else removed_paths
     out: list[str] = []
     stats: dict[str, int] = defaultdict(int)
     changes: list[tuple[str, str, str]] = []
@@ -591,7 +625,12 @@ def migrate_text(ini_text: str, old_rev: dict, new_fwd: dict, fallback=None,
 
         new_val = new_fwd.get(next(iter(paths)))
         if not new_val:
+            # The old path no longer exists in the new build and the value is
+            # kept as it was. That is a guess, not a result: record it so the
+            # summary can say so. Counting it silently is how 104 offsets came
+            # to sit on dead paths while the report showed nothing to review.
             stats["path_removed_in_new"] += 1
+            removed_paths.append({"offset": name, "value": val})
             out.append(line)
             continue
 
@@ -809,17 +848,50 @@ def main() -> int:
             if _new and _new != _val:
                 anchor_map[_name] = _new
 
+    # Offsets whose global lives in a script the corpus does not carry (the
+    # creator launch sequence, which flips flags in maintransition.c). Without
+    # this they fall into path_removed_in_new: the old path is gone from the new
+    # build, the migrator keeps the old value, and nothing is reported. Applied
+    # only where the ini still holds the value the anchor resolves in the OLD
+    # corpus, so a matching anchor on the wrong offset cannot take effect.
+    from tools.verified_anchors import resolve_context_offsets as _context  # noqa: E402
+    for _name, (_before, _after) in _context(old_dir, new_dir).items():
+        if _name in anchor_map:
+            continue
+        _m = re.search(rf'^{_name}\s*=\s*"([^"]*)"', _ini_text, flags=re.MULTILINE)
+        if _m and _m.group(1) == _before and _after != _before:
+            anchor_map[_name] = _after
+
     unresolved: list = []
+    removed_paths: list = []
     migrated_text, stats, changes = migrate_text(
         ini_path.read_text(encoding="utf-8"), old_rev, new_fwd, fallback, infer_families,
         structural, struct_families, helper_names, unresolved, loose, skip_families,
-        local_resolver, field_resolver, local_field_resolver, anchor_map)
+        local_resolver, field_resolver, local_field_resolver, anchor_map, removed_paths)
 
     # Nachkorrektur: Familien-Konsens (cross-family-Ausreisser) + _NEXT-Strides.
     struct_fams_all = tuple(p for p in args.struct_families.split(",") if p)
     migrated_text, family_notes = postprocess_families(migrated_text, ini_path.read_text(encoding="utf-8"), struct_fams_all)
     if family_notes:
         stats["migrated_family"] = stats.get("migrated_family", 0) + len(family_notes)
+
+    # Nachkorrektur: Tuneables-Offsets, deren semantischer Pfad nicht traegt.
+    # Sie landen sonst in path_removed_in_new -- alter Pfad im neuen Build weg,
+    # alter Wert behalten, keine Meldung. Greift nur, wo das Feld im neuen
+    # Korpus gar nicht mehr vorkommt.
+    from tools.tunables import resolve as _tunables  # noqa: E402
+    _tun_fixes, _tun_notes = _tunables(
+        ini_path.read_text(encoding="utf-8"), migrated_text, old_dir, new_dir)
+    for _name, _value in _tun_fixes.items():
+        migrated_text = re.sub(rf'^({_name}\s*=\s*")[^"]*(")',
+                               lambda m: m.group(1) + _value + m.group(2),
+                               migrated_text, count=1, flags=re.MULTILINE)
+    if _tun_notes:
+        stats["migrated_tuneables"] = len(_tun_notes)
+        for _n, _o, _c, _how in _tun_notes:
+            changes.append((_n, _o, _c))
+        stats["tuneables_by_key"] = sum(1 for *_, h in _tun_notes if h == "key")
+        stats["tuneables_by_run"] = sum(1 for *_, h in _tun_notes if h == "run")
 
     # Nachkorrektur: Stride-/_NEXT-Offsets (blanke Ganzzahl = Array-Element-Groesse)
     # ueber die alt->neu-Stride-Karte. Faengt auch Nicht-struct-Familien (props/
@@ -859,6 +931,11 @@ def main() -> int:
             "stats": stats,
             "changes": [{"offset": n, "old": o, "new": nw} for n, o, nw in changes],
             "unresolved": [{"offset": n, "value": o} for n, o in unresolved],
+            # Offsets whose old path is gone from the new build and whose
+            # value was kept unchanged. Not a result, a guess -- reported
+            # so it can be looked at instead of counted in silence.
+            "kept_on_dead_path": [e for e in removed_paths
+                                  if e["offset"] not in _tun_fixes],
         }, indent=2) + "\n", encoding="utf-8")
         print(f"report: {rp}")
     return 0

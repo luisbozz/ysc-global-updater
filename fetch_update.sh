@@ -56,6 +56,12 @@ c_scripts="fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creat
            fm_survival_creator fmmc_launcher public_mission_creator tuneables_processing"
 full_scripts="fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creator \
               fm_survival_creator fmmc_launcher"
+# Scripts that hold a handful of offsets but do not belong in the corpus: the
+# creator launch sequence flips flags in maintransition.c, which drives the
+# transition into and out of a creator. Kept in a context/ subfolder so neither
+# select_sources nor the corpus glob picks them up; verified_anchors reads them
+# by name.
+context_scripts="maintransition"
 
 mkdir -p "$scripts_dir"
 
@@ -64,6 +70,13 @@ echo "== decompiled .c  -> scripts/$label/"
 for f in $c_scripts; do
   echo "   .c    $f"
   curl -fsSL "$base/$c_path/$f.c" -o "$scripts_dir/$f.c"
+done
+
+mkdir -p "$scripts_dir/context"
+echo "== context scripts -> scripts/$label/context/"
+for f in $context_scripts; do
+  echo "   .c    $f"
+  curl -fsSL "$base/$c_path/$f.c" -o "$scripts_dir/context/$f.c"
 done
 
 if [ "$variant" = "enhanced" ]; then

@@ -99,6 +99,117 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
 }
 
 
+# Offsets that live in a script the main corpus does not carry.
+#
+# The corpus is the eight creator and launcher scripts, because that is where
+# the creator's own data lives. The launch sequence does not: it flips flags in
+# maintransition.c, which drives the transition into and out of a creator. Those
+# globals were therefore never migrated -- the pipeline could not see them, and
+# kept their old values without reporting anything.
+#
+# Pulling maintransition.c into the corpus proper would change what every other
+# resolver sees, for one handful of offsets. It is fetched into a `context/`
+# subfolder instead, which neither the corpus glob nor select_sources looks at,
+# and read here by name.
+#
+# Each anchor is a piece of the surrounding code that is game logic rather than
+# a global number: a comparison against literal constants, or a call expression
+# whose shape survives a rebuild. Every one of these resolves to exactly one
+# global in each corpus, or the offset is left alone.
+_CONTEXT_FILE = "maintransition.c"
+
+_CONTEXT_ANCHORS = {
+    # launch_creator_local_3: the only place two adjacent globals are both
+    # tested against zero in one condition.
+    "OFFSET_launch_creator_local_3": (
+        re.compile(r"if \(Global_(\d+) == 0 \|\| Global_\d+ == 0\)"),
+        "Global_{0}",
+    ),
+    # launch_creator_local_4: a getter whose only call site sits in a long
+    # disjunction next to IS_PLAYER_SWITCH_IN_PROGRESS. The function numbers
+    # move every build; the shape of the expression does not.
+    "OFFSET_launch_creator_local_4": (
+        re.compile(
+            r"YER_SWITCH_IN_PROGRESS\(\) \|\| func_\d+\(\) == 2\) \|\| "
+            r"func_\d+\(\) == 3\) \|\| func_(\d+)\(\)\)"
+        ),
+        "__getter_func_{0}",      # resolved to its global below
+    ),
+    # launch_creator_local_5: a state field compared against three literal
+    # values. Those constants are game logic and outlive the field number.
+    "OFFSET_launch_creator_local_5": (
+        re.compile(
+            r"if \(\(Global_(\d+) != 4 && Global_\1 != 5\) && Global_\1 != 7\)"
+        ),
+        "Global_{0}",
+    ),
+}
+
+# transitionState has no context of its own -- it is only ever read and written
+# through a getter/setter pair. What does pin it is its position in a run of
+# consecutive one-line getters: three of them return descending global numbers.
+# That run occurs four times in the script and this is the last one, in both
+# corpora.
+_ONE_LINE_GETTER_RE = re.compile(r"^\s*return Global_(\d+);\s*$", re.M)
+
+
+def _descending_getter_runs(text: str) -> list:
+    """Globals that sit in the middle of three consecutive descending getters."""
+    values = [int(m.group(1)) for m in _ONE_LINE_GETTER_RE.finditer(text)]
+    return [b for a, b, c in zip(values, values[1:], values[2:])
+            if a == b + 1 == c + 2]
+
+
+def _getter_global(text: str, func: str) -> str | None:
+    """The global a one-line getter function returns."""
+    m = re.search(rf"\w+ {func}\(\)\s*\{{\s*return Global_(\d+);\s*\}}", text)
+    return m.group(1) if m else None
+
+
+def resolve_context_offsets(old_dir: pathlib.Path, new_dir: pathlib.Path) -> dict:
+    """``{offset name: (old value, new value)}`` from the context script.
+
+    Both sides are resolved, not just the new one. The caller applies the new
+    value only where the ini still holds the old one -- an anchor that resolves
+    cleanly in both corpora can still be the wrong anchor for a given offset,
+    and the old value is the one piece of evidence that says otherwise.
+
+    Empty when the script is missing, so a corpus fetched before this existed
+    simply resolves nothing instead of failing."""
+    old_file = old_dir / "context" / _CONTEXT_FILE
+    new_file = new_dir / "context" / _CONTEXT_FILE
+    if not (old_file.is_file() and new_file.is_file()):
+        return {}
+    old_text, new_text = read_source(old_file), read_source(new_file)
+
+    def resolve(text: str, pattern: re.Pattern, template: str) -> str | None:
+        hits = {m.group(1) for m in pattern.finditer(text)}
+        if len(hits) != 1:
+            return None       # ambiguous or gone -> leave the offset alone
+        value = template.format(next(iter(hits)))
+        if value.startswith("__getter_func_"):
+            g = _getter_global(text, "func_" + value[len("__getter_func_"):])
+            return f"Global_{g}" if g else None
+        return value
+
+    out = {}
+    for name, (pattern, template) in _CONTEXT_ANCHORS.items():
+        before = resolve(old_text, pattern, template)
+        after = resolve(new_text, pattern, template)
+        if before and after:
+            out[name] = (before, after)
+
+    # transitionState: the last descending getter run. Requiring the same number
+    # of runs on both sides keeps a restructured script from silently matching a
+    # different one.
+    old_runs = _descending_getter_runs(old_text)
+    new_runs = _descending_getter_runs(new_text)
+    if old_runs and len(old_runs) == len(new_runs):
+        out["OFFSET_transitionState"] = (f"Global_{old_runs[-1]}",
+                                         f"Global_{new_runs[-1]}")
+    return out
+
+
 def _matches(directory: pathlib.Path, pattern: re.Pattern, template: str) -> set:
     values: set = set()
     for path in sorted(directory.glob("*.c")):
