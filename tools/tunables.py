@@ -43,18 +43,50 @@ from tools.dialect import read_source
 
 ROOT_GLOBAL = "Global_4718592"
 
+_ANY_VALUE = r"(?:Global_\d+)(?:\.f_\d+)+"
+
+# Three ways a script writes a named value into a data file, all of which carry
+# the key as a literal:
+#
+#   DATADICT_SET_INT(*dict, "head", Global_4718592.f_124916);
+#   func_622("iplop2", &(Global_4718592.f_183569), dict, 0);
+#   StringCopy(&scratch, "tmrph", 8);
+#   StringIntConCat(&scratch, i, 8);
+#   func_285(&scratch, &(Global_4718592.f_188047[i /*16*/]), dict);
+#
+# Only the first was matched originally, which is why a third of the tuneables
+# looked keyless. The second hands the key to a helper; the third builds a
+# per-index name from a literal prefix, and that prefix is the key.
 _SET_CALL = re.compile(
     rf'DATADICT_SET_\w+\([^,]+,\s*"(\w+)",\s*({re.escape(ROOT_GLOBAL)}\.f_(\d+))\s*\)')
+_HELPER_CALL = re.compile(rf'func_\d+\(\s*"(\w+)",\s*&\(?({_ANY_VALUE})\)?')
+_BUILT_KEY = re.compile(
+    rf'(?:StringCopy|TEXT_LABEL_ASSIGN_STRING)\(&(\w+),\s*"(\w+)",\s*\d+\);'
+    rf'(?:[^;]{{0,120}};){{0,3}}?\s*'
+    rf'func_\d+\(&\1,\s*&\(?({_ANY_VALUE})')
 _FIELD = re.compile(rf"{re.escape(ROOT_GLOBAL)}\.f_(\d+)\b")
 _PLAIN_VALUE = re.compile(rf"^{re.escape(ROOT_GLOBAL)}\.f_(\d+)$")
 
 
-def _serialized_sequence(directory: pathlib.Path) -> list:
-    """``(key, value)`` for every tuneables write, in source order."""
+def _serialized_sequence(directory: pathlib.Path, merged: bool) -> list:
+    """``(key, value)`` for named writes, in source order.
+
+    Two views of the same code. ``merged=False`` sees only the direct
+    DATADICT_SET_* writes; ``merged=True`` also weaves in the helper and
+    built-key forms. Neither is strictly better: adding events gives a generic
+    key like "chp" the neighbours that identify it, and takes away the ones that
+    identified "cordmbs". Both are built, and a value is only used where the two
+    views agree."""
     out = []
     for path in sorted(directory.glob("*.c")):
         text = read_source(path)
-        out += [(m.group(1), m.group(2)) for m in _SET_CALL.finditer(text)]
+        events = [(m.start(), m.group(1), m.group(2)) for m in _SET_CALL.finditer(text)]
+        if merged:
+            events += [(m.start(), m.group(1), m.group(2))
+                       for m in _HELPER_CALL.finditer(text)]
+            events += [(m.start(), m.group(2), m.group(3))
+                       for m in _BUILT_KEY.finditer(text)]
+        out += [(k, g) for _, k, g in sorted(events)]
     return out
 
 
@@ -68,11 +100,40 @@ def _unique_neighbourhoods(sequence: list) -> dict:
     return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 
 
+def _literal_keys(directory: pathlib.Path) -> dict:
+    """``{key: value}`` for keys that name exactly one value in this corpus.
+
+    These keys are specific enough to stand on their own -- unlike the generic
+    ones ("head", "type") that the neighbourhood map exists for."""
+    seen = collections.defaultdict(set)
+    for path in sorted(directory.glob("*.c")):
+        text = read_source(path)
+        for m in _HELPER_CALL.finditer(text):
+            seen[m.group(1)].add(m.group(2))
+        for m in _BUILT_KEY.finditer(text):
+            seen[m.group(2)].add(m.group(3))
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
+
+
 def key_map(old_dir: pathlib.Path, new_dir: pathlib.Path) -> dict:
-    """``{old value: new value}`` for keys whose neighbourhood is unique in both."""
-    old = _unique_neighbourhoods(_serialized_sequence(old_dir))
-    new = _unique_neighbourhoods(_serialized_sequence(new_dir))
-    return {old[k]: new[k] for k in set(old) & set(new)}
+    """``{old value: new value}``, from literal keys and from neighbourhoods."""
+    out = {}
+    old_lit, new_lit = _literal_keys(old_dir), _literal_keys(new_dir)
+    for k in set(old_lit) & set(new_lit):
+        out[old_lit[k]] = new_lit[k]
+    views = []
+    for merged in (False, True):
+        old_n = _unique_neighbourhoods(_serialized_sequence(old_dir, merged))
+        new_n = _unique_neighbourhoods(_serialized_sequence(new_dir, merged))
+        views.append({old_n[k]: new_n[k] for k in set(old_n) & set(new_n)})
+    answers = collections.defaultdict(set)
+    for view in views:
+        for old_value, new_value in view.items():
+            answers[old_value].add(new_value)
+    for old_value, candidates in answers.items():
+        if len(candidates) == 1:          # both views, or only one, and no conflict
+            out.setdefault(old_value, next(iter(candidates)))
+    return out
 
 
 def field_counts(directory: pathlib.Path) -> dict:
@@ -128,7 +189,18 @@ def run_shift(field: int, old_counts: dict, new_counts: dict, anchors: list) -> 
     return found[0] if found else None
 
 
-_BASE_VALUE = re.compile(rf"^({re.escape(ROOT_GLOBAL)}\.f_\d+)(\..*)?$")
+_BASE_VALUE = re.compile(rf"^({_ANY_VALUE.replace('(?:', '(?:')})(?:\[.*)?$")
+# The first .f_N level of any global value -- the part a rename moves.
+_ANY_BASE = re.compile(r"^(Global_\d+\.f_\d+)(\..*)?$")
+
+
+def base_values(directory: pathlib.Path) -> set:
+    """Every ``Global_N.f_M`` that occurs in a corpus, base level only."""
+    seen = set()
+    for path in sorted(directory.glob("*.c")):
+        seen.update(m.group(0) for m in
+                    re.finditer(r"Global_\d+\.f_\d+", read_source(path)))
+    return seen
 
 
 def _resolved_bases(before: dict, after: dict) -> dict:
@@ -142,7 +214,7 @@ def _resolved_bases(before: dict, after: dict) -> dict:
         new_value = after.get(name)
         if not new_value or new_value == old_value:
             continue
-        mo, mn = _BASE_VALUE.match(old_value), _BASE_VALUE.match(new_value)
+        mo, mn = _ANY_BASE.match(old_value), _ANY_BASE.match(new_value)
         if not (mo and mn):
             continue
         # Only when the suffix is untouched does the pair say something about
@@ -165,6 +237,7 @@ def resolve(ini_text: str, migrated_text: str,
     after = {m.group(1): m.group(2) for m in value_re.finditer(migrated_text)}
 
     old_counts, new_counts = field_counts(old_dir), field_counts(new_dir)
+    new_bases = base_values(new_dir)
 
     anchors = []
     for name, old_value in before.items():
@@ -188,26 +261,28 @@ def resolve(ini_text: str, migrated_text: str,
         settled.update(fixes)
         by_base = _resolved_bases(before, settled)
         _resolve_pass(before, after, fixes, notes, by_key, by_base,
-                      old_counts, new_counts, anchors, base_only=(_pass == 2))
+                      old_counts, new_counts, new_bases, anchors,
+                      base_only=(_pass == 2))
     return fixes, notes
 
 
 def _resolve_pass(before, after, fixes, notes, by_key, by_base,
-                  old_counts, new_counts, anchors, base_only):
+                  old_counts, new_counts, new_bases, anchors, base_only):
     for name, old_value in before.items():
         if name in fixes:
             continue
         if after.get(name) != old_value:
             continue                      # already migrated
-        m = _BASE_VALUE.match(old_value)
+        m = _ANY_BASE.match(old_value)
         if not m:
             continue
-        field = int(m.group(1).rsplit("_", 1)[1])
-        if field in new_counts:
+        if m.group(1) in new_bases:
             continue                      # still exists; leave it alone
+        field = (int(m.group(1).rsplit("_", 1)[1])
+                 if m.group(1).startswith(ROOT_GLOBAL + ".") else None)
         candidate = None if base_only else by_key.get(old_value)
         how = "key"
-        if not candidate and not base_only:
+        if not candidate and not base_only and field is not None:
             delta = run_shift(field, old_counts, new_counts, anchors)
             if delta is not None:
                 candidate = f"{ROOT_GLOBAL}.f_{field + delta}"
@@ -215,7 +290,7 @@ def _resolve_pass(before, after, fixes, notes, by_key, by_base,
         if not candidate:
             # Sub-fields of a base another offset already pinned down: the
             # suffix is a struct layout, which the base carries with it.
-            mb = _BASE_VALUE.match(old_value)
+            mb = _ANY_BASE.match(old_value)
             new_base = by_base.get(mb.group(1)) if mb else None
             if not new_base:
                 continue

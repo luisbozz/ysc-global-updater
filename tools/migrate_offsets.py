@@ -934,8 +934,14 @@ def main() -> int:
             # Offsets whose old path is gone from the new build and whose
             # value was kept unchanged. Not a result, a guess -- reported
             # so it can be looked at instead of counted in silence.
-            "kept_on_dead_path": [e for e in removed_paths
-                                  if e["offset"] not in _tun_fixes],
+            # Filtered against the finished text, not against one step's
+            # output: an offset can pass through this branch and still be
+            # corrected later by the family or stride pass, and reporting it as
+            # stale then sends someone after a value that is already right.
+            "kept_on_dead_path": [
+                e for e in removed_paths
+                if re.search(rf'^{e["offset"]}\s*=\s*"{re.escape(e["value"])}"',
+                             migrated_text, flags=re.MULTILINE)],
         }, indent=2) + "\n", encoding="utf-8")
         print(f"report: {rp}")
     return 0

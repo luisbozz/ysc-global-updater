@@ -130,16 +130,30 @@ class RealCorpusTest(unittest.TestCase):
         self.assertEqual(m[f"{G}.f_124916"], f"{G}.f_126191")
         self.assertEqual(m[f"{G}.f_124917"], f"{G}.f_126192")
 
-    def test_the_map_never_contradicts_a_field_that_still_exists(self):
-        old_c, new_c = field_counts(OLD), field_counts(NEW)
+    def test_every_tuneables_source_field_really_exists(self):
+        # The map covers several roots now, so only tuneables entries can be
+        # checked against the tuneables field index.
+        old_c = field_counts(OLD)
+        for old_value in key_map(OLD, NEW):
+            if not old_value.startswith(G + ".f_"):
+                continue
+            if "." in old_value[len(G) + 1:].lstrip("f_"):
+                continue                       # nested, not a bare field
+            self.assertIn(int(old_value.rsplit("_", 1)[1]), old_c)
+
+    def test_the_map_covers_the_three_call_shapes(self):
         m = key_map(OLD, NEW)
-        for old_value, new_value in m.items():
-            field = int(old_value.rsplit("_", 1)[1])
-            if field in new_c and old_value != new_value:
-                # A field present in both builds may legitimately be reused for
-                # something else, but the resolver must not act on it -- that is
-                # enforced in resolve(), which skips those.
-                self.assertIn(field, old_c)
+        # DATADICT_SET_ with a generic key, identified by its neighbours
+        self.assertEqual(m[f"{G}.f_124916"], f"{G}.f_126191")     # "head"
+        # helper call carrying the key as a literal
+        self.assertEqual(m[f"{G}.f_3593"], f"{G}.f_3826")         # "camf"
+        # key built from a literal prefix plus an index
+        self.assertEqual(m[f"{G}.f_188047"], f"{G}.f_194563")     # "tmrph"
+
+    def test_the_map_reaches_beyond_the_tuneables_root(self):
+        m = key_map(OLD, NEW)
+        self.assertEqual(m["Global_4980736.f_187603"], "Global_4980736.f_196762")
+        self.assertEqual(m["Global_4980736.f_214055"], "Global_4980736.f_224044")
 
 
 if __name__ == "__main__":
