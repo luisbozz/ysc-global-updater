@@ -14,6 +14,22 @@ Kategorien pro Patch (Haupt-Pattern, analog fuer jedes ``values``-Subpattern):
 - AMBIG_OLD   : >1 alt                          -> war schon nicht eindeutig (fragil).
 - NOT_IN_OLD  : 0 alt                           -> Pattern matcht nicht mal den alten
                 Bytecode (falsche Alt-Version, Script-Variante oder totes Pattern).
+- DISABLED    : ``"enabled": false``        -> Patch ist bewusst abgeschaltet und
+                                                   wird von Xenvious gar nicht erst
+                                                   angewendet. Wird nicht geprueft.
+- REDERIVED   : 0 alt, 1 neu, ``derived_for``   -> Pattern wurde bewusst fuer genau
+                == geprueftem neuen Build          diesen Build neu abgeleitet, weil
+                                                   sich die Instruktionsform geaendert
+                                                   hat. Alt und neu sind dann
+                                                   inkompatibel; kein Pattern kann
+                                                   beide treffen. Kein Handlungsbedarf.
+
+``derived_for`` setzt man von Hand auf den Build, fuer den man das Pattern neu
+abgeleitet hat (z. B. ``"derived_for": "1.73-3889"``), im Patch selbst oder in
+einem einzelnen ``values``-Eintrag. Der Marker gilt nur fuer genau diesen Build:
+beim naechsten Update ist er der ALTE Build, das Pattern trifft ihn wieder, und
+die normalen Regeln greifen von selbst. Ein veralteter Marker schuetzt also nicht
+versehentlich einen echten Bruch.
 
 Die ``*.ysc.full`` liegen versioniert unter ``scrpatches/disasm/<build>/`` (z.B.
 ``disasm/1.73-3889/fm_lts_creator.ysc.full``); geladen werden sie mit
@@ -58,7 +74,30 @@ def _count(data: bytes, pattern: str) -> list:
     return [m.start() for m in aob_to_regex(pattern).finditer(data)]
 
 
-def classify(n_old: int, n_new: int) -> str:
+def classify(n_old: int, n_new: int,
+             derived_for: str | None = None, new_build: str | None = None) -> str:
+    """Classify one pattern from its hit counts in the old and the new build.
+
+    ``derived_for`` marks a pattern that was deliberately re-derived for a
+    specific build. That happens when the compiler changed the *shape* of the
+    instructions, not just their operands - the old and the new form are then
+    incompatible and no single pattern can match both builds. Such a pattern
+    legitimately has zero hits in the old build, so ``NOT_IN_OLD`` would be a
+    false alarm. It is reported as ``REDERIVED`` instead.
+
+    The marker only silences the alarm for the build it names. On the next
+    update that build becomes the *old* one, the pattern matches it again, and
+    the normal rules take over by themselves."""
+    if derived_for and new_build and derived_for == new_build:
+        # Judge on the new build alone. Whatever this pattern does or does not
+        # hit in the old build says nothing: it was written against a different
+        # instruction shape. Counting old hits here is worse than useless - a
+        # re-derived pattern can coincidentally match one unrelated old site and
+        # would then be reported OK, which looks like a verified result and is
+        # not one.
+        if n_new == 1:
+            return "REDERIVED"
+        return "BROKEN" if n_new == 0 else "AMBIG_NEW"
     if n_old == 0:
         return "NOT_IN_OLD"
     if n_old > 1:
@@ -68,6 +107,29 @@ def classify(n_old: int, n_new: int) -> str:
     if n_new == 0:
         return "BROKEN"
     return "AMBIG_NEW"
+
+
+def is_healthy(status: str) -> bool:
+    """A status that needs no action."""
+    return status in ("OK", "REDERIVED", "DISABLED")
+
+
+def stale_markers(patches: list, old_build: str, new_build: str) -> list:
+    """``derived_for`` values naming a build that is neither end of this check.
+
+    Such a marker does nothing - the pattern falls through to the normal rules,
+    which compare it against an old build it was never written for. Usually a
+    typo or a marker left over from a skipped update."""
+    out = []
+    for p in patches:
+        for owner, entry in [(None, p)] + [(v.get("id"), v) for v in (p.get("values") or [])]:
+            df = entry.get("derived_for")
+            if df and df not in (old_build, new_build):
+                label = p.get("patch_name", "?")
+                if owner is not None:
+                    label += f" values#{owner}"
+                out.append((label, p.get("script_name", "?"), df))
+    return out
 
 
 def check(patches: list, old_build: str, new_build: str) -> list:
@@ -81,10 +143,14 @@ def check(patches: list, old_build: str, new_build: str) -> list:
         old = _load(script, old_build)
         new = _load(script, new_build)
         ho, hn = _count(old, pat), _count(new, pat)
+        # enabled=false parks a patch: Xenvious skips it entirely, so a broken
+        # pattern on it is not a problem to fix. Report it, do not classify it.
+        status = ("DISABLED" if p.get("enabled") is False
+                  else classify(len(ho), len(hn), p.get("derived_for"), new_build))
         entry = {
             "patch": p.get("patch_name", "?"), "script": script,
             "old_hits": len(ho), "new_hits": len(hn),
-            "status": classify(len(ho), len(hn)),
+            "status": status,
             "values": [],
         }
         for v in p.get("values") or []:
@@ -92,10 +158,11 @@ def check(patches: list, old_build: str, new_build: str) -> list:
             vo, vn = _count(old, vp), _count(new, vp)
             entry["values"].append({
                 "id": v.get("id"), "old_hits": len(vo), "new_hits": len(vn),
-                "status": classify(len(vo), len(vn)),
+                "status": classify(len(vo), len(vn), v.get("derived_for"), new_build),
             })
         # Ein Patch mit gebrochenem value-Subpattern ist effektiv auch kaputt.
-        if entry["status"] == "OK" and any(v["status"] != "OK" for v in entry["values"]):
+        if (entry["status"] != "DISABLED" and is_healthy(entry["status"])
+                and any(not is_healthy(v["status"]) for v in entry["values"])):
             entry["status"] = "BROKEN"
         results.append(entry)
     return results
@@ -123,7 +190,14 @@ def main() -> int:
     patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8"))
     results = check(patches, old_build, new_build)
 
-    order = ["BROKEN", "AMBIG_NEW", "AMBIG_OLD", "NOT_IN_OLD", "OK"]
+    for label, script, df in stale_markers(patches, old_build, new_build):
+        print(f"[WARN] derived_for={df!r} passt weder zu --old {old_build} noch zu "
+              f"--new {new_build}: {label} [{script}]\n"
+              f"       Marker wirkt nicht; Pattern wird gegen einen Build geprueft, "
+              f"fuer den es nie geschrieben wurde.", file=sys.stderr)
+
+    order = ["BROKEN", "AMBIG_NEW", "AMBIG_OLD", "NOT_IN_OLD",
+             "REDERIVED", "DISABLED", "OK"]
     counts = {k: sum(1 for r in results if r["status"] == k) for k in order}
 
     bar = "=" * 78
@@ -136,7 +210,7 @@ def main() -> int:
     print("-" * 78)
 
     for k in order:
-        if k == "OK" and args.only_issues:
+        if is_healthy(k) and args.only_issues:
             continue
         group = [r for r in results if r["status"] == k]
         if not group:
@@ -145,7 +219,8 @@ def main() -> int:
         for r in sorted(group, key=lambda r: (r["script"], r["patch"])):
             vinfo = ""
             if r["values"]:
-                bad = [f"val#{v['id']}={v['status']}" for v in r["values"] if v["status"] != "OK"]
+                bad = [f"val#{v['id']}={v['status']}" for v in r["values"]
+                       if not is_healthy(v["status"])]
                 vinfo = ("  values: " + ", ".join(bad)) if bad else "  (values ok)"
             print(f"  {r['patch'][:44]:44s} {r['script']:22s} "
                   f"alt={r['old_hits']} neu={r['new_hits']}{vinfo}")

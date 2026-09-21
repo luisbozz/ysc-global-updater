@@ -7,6 +7,9 @@ Layout is authoritative, ported 1:1 from the GTA-V-Script-Decompiler
 * for a ``.full`` dump the RSC7 magic is absent, so ``RSC7Offset == 0``
 * code lives in ``0x4000``-byte pages; ``CodeBlocksOffset`` points at an array
   of ``CodeBlocks`` page pointers; concatenating them yields ``CodeLength`` bytes.
+* the string table is paged exactly the same way, off ``StringsOffset`` /
+  ``StringsSize``; entries are nul-terminated and addressed by their offset
+  into the concatenated table (what ``PUSH_CONST_* ; STRING`` pushes).
 """
 
 from __future__ import annotations
@@ -41,6 +44,57 @@ class YscFull:
     native_raw: list[int] = field(default_factory=list, repr=False)
     strings_offset: int = 0
     strings_size: int = 0
+    _strings: bytes | None = field(default=None, repr=False, compare=False)
+
+    # -- string table ------------------------------------------------------
+    #
+    # Cross-version work leans on these hard. A string *offset* moves on every
+    # update, but the string *text* is game content, not compiler output, so it
+    # survives - which makes "the code that mentions FMMC_PRP_PAOP" a stable way
+    # to name a site across builds when raw addresses are not.
+
+    def strings(self) -> bytes:
+        """The concatenated string table, assembled from its pages (cached)."""
+        if self._strings is None:
+            data = Path(self.path).read_bytes()
+            pages = (self.strings_size + 0x3FFF) >> 14
+            chunks, p = [], self.strings_offset
+            for i in range(pages):
+                off = _ptr(data, p)
+                p += 8
+                size = (self.strings_size % 0x4000
+                        if (i + 1) * 0x4000 >= self.strings_size else 0x4000)
+                chunks.append(data[off:off + size])
+            object.__setattr__(self, "_strings", b"".join(chunks))
+        return self._strings
+
+    def string_at(self, offset: int) -> str | None:
+        """The nul-terminated string at ``offset``, or None if out of range."""
+        table = self.strings()
+        if not 0 <= offset < len(table):
+            return None
+        end = table.find(b"\x00", offset)
+        if end < 0:
+            end = len(table)
+        return table[offset:end].decode("utf-8", "replace")
+
+    def string_offsets(self, text: str) -> list[int]:
+        """Every offset whose entry is exactly ``text``.
+
+        Only matches at an entry boundary - a hit in the middle of a longer
+        string is not a usable anchor."""
+        table = self.strings()
+        needle = text.encode("utf-8")
+        out, start = [], 0
+        while True:
+            i = table.find(needle, start)
+            if i < 0:
+                return out
+            start = i + 1
+            if table[i + len(needle):i + len(needle) + 1] != b"\x00":
+                continue
+            if i == 0 or table[i - 1] == 0:
+                out.append(i)
 
     @classmethod
     def parse(cls, path: str | Path) -> "YscFull":

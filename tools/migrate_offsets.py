@@ -717,10 +717,22 @@ def main() -> int:
 
     # Verifizierte Anker (immer an, sehr schnell): eine kleine, versionsrobuste
     # Liste code-accessed Scalars ohne semantischen Key (z. B. check_creator,
-    # hide_creator_menu), ueber strukturell eindeutige Quelltext-Anker aufgeloest
-    # statt ueber eine veraltete Hardcode-Zuordnung.
+    # hide_creator_menu, vsbsout), ueber strukturell eindeutige Quelltext-Anker
+    # aufgeloest statt ueber eine veraltete Hardcode-Zuordnung.
     from tools.verified_anchors import build_anchor_map as _build_anchor_map  # noqa: E402
+    from tools.verified_anchors import resolve_actor_weapon_slot_family as _actor_family  # noqa: E402
     anchor_map = _build_anchor_map(old_dir, new_dir)
+    # actor "weapon slot" sub-array (f_161.f_9 in 1.71): nested array-inside-a-
+    # struct-field whose offsets.ini values carry no index (Xenvious always
+    # reads slot 0), so the index-aware main pipeline cannot see them and the
+    # family-consensus post-pass can only guess a straight-line delta (wrong
+    # whenever a field is inserted inside the sub-array). Resolved directly
+    # from each leaf's own DATADICT key instead. actor_actv_NEXT is a bare
+    # integer (no quotes) and must be patched into the text separately below,
+    # after migrate_text() (the main per-offset loop only handles quoted values).
+    actor_family = _actor_family(old_dir, new_dir)
+    actor_next = actor_family.pop("OFFSET_actor_actv_NEXT", None)
+    anchor_map.update(actor_family)
 
     # Dedizierter Local-Kontext-Matcher (immer an, schnell): loest die
     # current_creator_* Locals (fLocal_/uLocal_/iLocal_) per Anker-Matching.
@@ -780,6 +792,23 @@ def main() -> int:
         except Exception:
             return None
 
+    # Array-Bloecke, die als Ganzes umziehen (published_*, saved_*, gbtpi/gbtpp):
+    # Basis per Anker aufloesen, dann jeden Leaf re-basen. Die Leaves haben keinen
+    # semantischen Key und keinen strukturellen Schritt, landen also sonst
+    # samt und sonders als not_found_in_old im Review.
+    from tools.verified_anchors import rebase_value as _rebase  # noqa: E402
+    from tools.verified_anchors import resolve_moved_array_bases as _array_bases  # noqa: E402
+    _base_rules = _array_bases(old_dir, new_dir)
+    if _base_rules:
+        for _m in re.finditer(r'^(OFFSET_[A-Za-z0-9_]+)\s*=\s*"([^"]*)"',
+                              _ini_text, flags=re.MULTILINE):
+            _name, _val = _m.group(1), _m.group(2)
+            if _name in anchor_map:
+                continue
+            _new = _rebase(_val, _base_rules)
+            if _new and _new != _val:
+                anchor_map[_name] = _new
+
     unresolved: list = []
     migrated_text, stats, changes = migrate_text(
         ini_path.read_text(encoding="utf-8"), old_rev, new_fwd, fallback, infer_families,
@@ -798,6 +827,22 @@ def main() -> int:
     migrated_text, stride_notes = postprocess_strides(migrated_text, ini_path.read_text(encoding="utf-8"))
     if stride_notes:
         stats["migrated_stride"] = stats.get("migrated_stride", 0) + len(stride_notes)
+
+    # actor_actv_NEXT ist eine BLANKE Ganzzahl (keine Anfuehrungszeichen) und wird
+    # daher weder vom Haupt-Loop (anchor_map, s.o.) noch zuverlaessig von
+    # postprocess_strides erfasst (dessen generische Stride-Karte koennte einen
+    # zufaellig passenden, aber falschen 27->X-Fall aus einem anderen Offset-Paar
+    # ziehen) -> per verifiziertem Anker NACH beiden Postprocess-Schritten final setzen.
+    if actor_next is not None:
+        _next_re = re.compile(r'^(OFFSET_actor_actv_NEXT\s*=\s*)(\d+)(.*)$', re.MULTILINE)
+
+        def _patch_actor_next(m: re.Match) -> str:
+            if m.group(2) != actor_next:
+                stats["migrated_anchor"] = stats.get("migrated_anchor", 0) + 1
+                changes.append(("OFFSET_actor_actv_NEXT", m.group(2), actor_next))
+            return f"{m.group(1)}{actor_next}{m.group(3)}"
+
+        migrated_text = _next_re.sub(_patch_actor_next, migrated_text)
 
     out_path = rel(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

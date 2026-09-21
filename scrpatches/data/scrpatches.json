@@ -10,10 +10,11 @@
     {
         "patch_name": "show stunt prop item cycle",
         "script_name": "fm_capture_creator",
-        "pattern": "25 32 61 ? ? ? 46 ? ? 41 ?",
+        "pattern": "25 33 61 ? ? ? 64 ? ? ? 3F 41 ? 64 ? ? ?",
         "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
-        "dev": false
+        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "dev": false,
+        "derived_for": "1.73-3889"
     },
     {
         "patch_name": "selected spawn veicle stays after testing ends",
@@ -50,10 +51,11 @@
     {
         "patch_name": "show stunt prop item cycle",
         "script_name": "fm_lts_creator",
-        "pattern": "25 32 61 ? ? ? 46 ? ? 41 ?",
+        "pattern": "25 33 61 ? ? ? 64 ? ? ? 3F 41 ? 64 ? ? ?",
         "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
-        "dev": false
+        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "dev": false,
+        "derived_for": "1.73-3889"
     },
     {
         "patch_name": "dont force plyl to 1",
@@ -119,7 +121,7 @@
     {
         "patch_name": "cam fix",
         "script_name": "fm_capture_creator",
-        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C 05 02 7E 2E 00 01",
+        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C ? ? ? 2E 00 01",
         "offset": 5,
         "bytes_to_patch": "72 00 00 00 00 00 00 00 00",
         "dev": false
@@ -135,7 +137,7 @@
     {
         "patch_name": "cam fix",
         "script_name": "fm_deathmatch_creator",
-        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C 05 03 AA 2E 00 01",
+        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C ? ? ? 2E 00 01",
         "offset": 5,
         "bytes_to_patch": "72 00 00 00 00 00 00 00 00",
         "dev": false
@@ -143,7 +145,7 @@
     {
         "patch_name": "cam fix",
         "script_name": "fm_race_creator",
-        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C 05 07 E7 2E 00 01",
+        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C ? ? ? 2E 00 01",
         "offset": 5,
         "bytes_to_patch": "72 00 00 00 00 00 00 00 00",
         "dev": false
@@ -151,7 +153,7 @@
     {
         "patch_name": "cam fix",
         "script_name": "fm_survival_creator",
-        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C 05 03 10 2E 00 01",
+        "pattern": "2D 00 02 00 00 28 E6 2E F0 96 2C ? ? ? 2E 00 01",
         "offset": 5,
         "bytes_to_patch": "72 00 00 00 00 00 00 00 00",
         "dev": false
@@ -275,7 +277,8 @@
                 "bytes_to_read": 4
             }
         ],
-        "dev": false
+        "dev": false,
+        "enabled": false
     },
     {
         "patch_name": "precise templates",
@@ -291,7 +294,8 @@
                 "bytes_to_read": 4
             }
         ],
-        "dev": false
+        "dev": false,
+        "enabled": false
     },
     {
         "patch_name": "precise templates",
@@ -307,7 +311,8 @@
                 "bytes_to_read": 4
             }
         ],
-        "dev": false
+        "dev": false,
+        "enabled": false
     },
     {
         "patch_name": "precise templates",
@@ -323,7 +328,8 @@
                 "bytes_to_read": 4
             }
         ],
-        "dev": false
+        "dev": false,
+        "enabled": false
     },
     {
         "patch_name": "precise templates",
@@ -339,7 +345,8 @@
                 "bytes_to_read": 4
             }
         ],
-        "dev": false
+        "dev": false,
+        "enabled": false
     },
     {
         "patch_name": "nop some func for custom funcs",

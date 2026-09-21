@@ -1,5 +1,5 @@
-old/
-new/
+old
+new
 new-latest/
 scripts/
 __pycache__/
@@ -8,3 +8,5 @@ reports/
 scrpatches/disasm/
 scrpatches/reports/
 scrpatches/decompiler/
+# scrpatches/update_patches.py backs the patch file up before its first edit.
+*.json.bak
