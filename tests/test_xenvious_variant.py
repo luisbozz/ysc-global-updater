@@ -163,19 +163,33 @@ class VariantDataTest(unittest.TestCase):
         for key, value in aob.items():
             self.assertTrue(value.strip(), f"legacy {key} is empty")
 
-    def test_enhanced_patches_ship_parked(self):
-        patches = json.loads((OFFLINE / "enhanced" / "scrpatches.json").read_text(
-            encoding="utf-8"))
-        self.assertTrue(patches)
-        for p in patches:
-            self.assertIs(p.get("enabled"), False,
-                          f"{p.get('patch_name')!r} is enabled but was never verified "
-                          f"against Enhanced bytecode")
+    def test_neither_variant_ships_an_all_parked_patch_set(self):
+        # Both sets are checked against their own build's bytecode now, so a
+        # wholesale parking would mean the check never ran.
+        for variant in VARIANTS:
+            patches = json.loads((OFFLINE / variant / "scrpatches.json").read_text(
+                encoding="utf-8"))
+            self.assertTrue(patches)
+            live = [p for p in patches if p.get("enabled") is not False]
+            self.assertTrue(live, f"{variant}: every patch is disabled")
 
-    def test_legacy_patches_are_not_all_parked(self):
-        patches = json.loads((OFFLINE / "legacy" / "scrpatches.json").read_text(
-            encoding="utf-8"))
-        self.assertTrue(any(p.get("enabled") is not False for p in patches))
+    def test_both_variants_carry_the_same_patches(self):
+        # They are the same features on the same scripts; only the patterns and
+        # the injected payloads differ per build.
+        names = []
+        for variant in VARIANTS:
+            patches = json.loads((OFFLINE / variant / "scrpatches.json").read_text(
+                encoding="utf-8"))
+            names.append(sorted((p.get("patch_name"), p.get("script_name"))
+                                for p in patches))
+        self.assertEqual(names[0], names[1])
+
+    def test_the_variants_patterns_are_not_byte_identical(self):
+        # A build needed one pattern re-derived, and every injected payload was
+        # rewritten. Identical files would mean the repair never ran.
+        texts = [(OFFLINE / v / "scrpatches.json").read_text(encoding="utf-8")
+                 for v in VARIANTS]
+        self.assertNotEqual(texts[0], texts[1])
 
 
 @unittest.skipUnless(HAVE_REPO, f"no Xenvious checkout at {XENVIOUS}")

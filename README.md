@@ -80,11 +80,10 @@ Without that, `--old` would default to the other game.
 
 | | Legacy | Enhanced |
 |---|---|---|
-| Upstream | [calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts) | [acidlabsdev](https://github.com/acidlabsdev/gtav-enhanced-scripts) |
-| Decompiled `.c` | yes | yes |
-| Decrypted `.ysc.full` | yes | **no** |
+| Upstream for `.c` | [calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts) | [acidlabsdev](https://github.com/acidlabsdev/gtav-enhanced-scripts) |
+| Upstream for `.ysc.full` | calamity-inc | none — extracted locally |
 | Offsets | migrated | migrated |
-| scrpatches | verified against bytecode | cannot be checked — shipped parked |
+| scrpatches | verified against bytecode | verified against bytecode |
 | AOB patterns | complete | 2 of 17 derived |
 
 ### What works for Enhanced
@@ -112,13 +111,46 @@ The absolute number is a floor, not a grade: offsets.ini also stores simplified
 forms that are correct but never appear literally in any corpus. Only the
 comparison between the two rows means anything.
 
-### What does not work for Enhanced
+### Enhanced bytecode dumps
 
-**scrpatches.** Nobody publishes decrypted Enhanced dumps, so no pattern can be
-checked or derived. The Legacy patch definitions ship with `enabled: false` and
-a `note` saying why — dropping them would lose the payloads, which are the
-expensive part to reconstruct. Enabling one means verifying its pattern against
-Enhanced bytecode first.
+Nobody publishes decrypted `.ysc.full` for Enhanced. They do not have to: an
+installed game has them, behind the RPF archive encryption, and CodeWalker's
+library can open that.
+
+```bash
+python3 tools/extract_ysc.py --variant enhanced --build 1.73-1158 \
+    --game 'E:/Grand Theft Auto V Enhanced' \
+    --codewalker '.../CodeWalker.Core/bin/Release/netstandard2.0/CodeWalker.Core.dll'
+```
+
+Extracting a `.ysc` resource yields exactly the layout `scrasm.yscfull` parses:
+the RSC7 container header is gone, so `RSC7Offset == 0`, which is the shape a
+published `.full` has.
+
+**The released CodeWalker binaries do not work here.** Enhanced key derivation
+landed in the public source but not in any tagged build, and an older build
+returns an AES key with null NG tables, which fails on the NG-encrypted
+archives. Build the library from master — it needs no Visual Studio, only the
+.NET SDK, and takes about ten seconds:
+
+```bash
+curl -sfL -o cw.tar.gz \
+    https://codeload.github.com/dexyfex/CodeWalker/tar.gz/refs/heads/master
+tar xzf cw.tar.gz
+dotnet build CodeWalker-master/CodeWalker.Core/CodeWalker.Core.csproj -c Release
+```
+
+`extract_ysc.py` runs from WSL and drives Windows PowerShell, translating paths
+with `wslpath`. OpenIV is no help: its command line only picks a game for the
+GUI, with no export at all.
+
+With the dumps in place, Enhanced runs the same chain as Legacy. Each variant
+keeps its own patch set (`data/scrpatches.json` and
+`data/scrpatches.enhanced.json`), because the patterns drift apart as soon as
+one build needs one re-derived, and the injected payloads are compiled per
+build and never match across one.
+
+### What does not work for Enhanced
 
 **AOB patterns.** These locate machine code and differ per build. Only
 `globalptr` and `localptr` have been derived so far; the other 15 ship **empty**
@@ -290,6 +322,7 @@ fresh scan.
 | `validate.py` | scores a result against a known-good `offsets.ini` |
 | `score_corpus.py` | scores a result by literal presence in a script corpus |
 | `dialect.py` | normalises the two decompiler spellings before matching |
+| `extract_ysc.py` | pulls decrypted script dumps out of an installed game |
 | `run_pipeline.py` | offset-side entry point plus the summary |
 | `../update_xenvious.py` | full update chain, offsets + scrpatches + deploy |
 | `infer_offsets.py` | legacy pattern/context matcher |

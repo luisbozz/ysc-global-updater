@@ -326,28 +326,49 @@ effect until the app is rebuilt, because OfflineData is compiled into the exe.
 
 ## Enhanced
 
-These patches are Legacy only.
+Enhanced works the same way as Legacy now, but its bytecode dumps come from an
+installed game instead of an upstream repository. Nobody publishes decrypted
+`.ysc.full` for Enhanced; see the [main README](../README.md#enhanced-bytecode-dumps)
+for `tools/extract_ysc.py` and the CodeWalker build it needs.
 
-A scrpatch is an AOB pattern over the *compiled bytecode* of a script. GTA V
-Enhanced is a separate compile of the same scripts, so the instruction stream
-differs: a Legacy pattern either misses, or -- worse -- matches an unrelated
-site and the patch writes into the wrong place.
+Each variant keeps its own patch set, so they can drift:
 
-Checking a pattern needs the decrypted `*.ysc.full` dumps, and nobody publishes
-them for Enhanced. [acidlabsdev](https://github.com/acidlabsdev/gtav-enhanced-scripts)
-has the decompiled `.c` (which is what the offset side needs) but no bytecode.
-So for Enhanced there is nothing to check a pattern against, and nothing to
-derive a new one from.
+```text
+data/scrpatches.json                     Legacy
+data/scrpatches.enhanced.json            Enhanced
+reports/scrpatches.repaired.json         Legacy, ready to ship
+reports/scrpatches.enhanced.repaired.json  Enhanced, ready to ship
+```
 
-`Xenvious/OfflineData/enhanced/scrpatches.json` therefore ships every patch with
-`"enabled": false` and a `note` saying why. The definitions are kept rather than
-dropped because each one carries the payload and the intent, which is the
-expensive part to reconstruct. `update_xenvious.py --variant enhanced` skips
-steps 3 and 4 and says so.
+Every tool here takes `--patches` and `--old`/`--new`, so an Enhanced run is an
+ordinary run against those paths:
 
-To enable one, you need Enhanced bytecode: dump the script yourself (see the
-decompiler route below), derive the pattern against it, and set `enabled` to
-true for that entry only. Until then, parked is the honest state.
+```bash
+python3 check_patches.py  --old 1.73-3889 --new enhanced-1.73-1158 \
+    --patches data/scrpatches.enhanced.json
+python3 update_patches.py --old 1.73-3889 --new enhanced-1.73-1158 \
+    --patches data/scrpatches.enhanced.json
+```
+
+A variant's first build has no predecessor of its own, so the check compares
+against the other game's newest build. That is not an approximation of the
+bytecode — the two are compiled separately and differ throughout — but the two
+games share their script *content*, which is enough to tell a pattern that
+still matches from one that does not.
+
+### What the first Enhanced run found
+
+Most Legacy patterns survive the recompile untouched: **37 of 43 matched
+Enhanced unchanged**, one needed an operand wildcarded (`cam fix` in
+`fm_lts_creator`, the native index moved), and the five `precise templates`
+were already parked on the Legacy side.
+
+The injected payloads are the part that never survives. All three were rebuilt:
+every native index changed (`IS_MODEL_VALID: 476 → 24`), every internal call was
+relocated, and the four external calls were re-resolved.
+
+That a pattern matches is not proof that it matches the *right* site — see
+[Known gaps](#known-gaps). It is the same bar the Legacy set is held to.
 
 ## Known gaps
 
@@ -396,6 +417,7 @@ All 3 injected payloads repair cleanly, 0 need review.
 | `repair_scrpatches.py` | migrate the injected customfuncs payloads to a new build |
 | `gen_customfuncs_src.py` | payload bytecode → readable `.ysa`, round-trip verified |
 | `scrasm/` | the YSC assembler/disassembler these build on — see [scrasm/README.md](scrasm/README.md) |
+| `../tools/extract_ysc.py` | pulls decrypted dumps out of an installed game (Enhanced has no upstream) |
 
 ## Tests
 

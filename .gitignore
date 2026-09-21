@@ -10,3 +10,5 @@ scrpatches/reports/
 scrpatches/decompiler/
 # scrpatches/update_patches.py backs the patch file up before its first edit.
 *.json.bak
+
+# Extracted game dumps live under scrpatches/disasm/, already ignored.

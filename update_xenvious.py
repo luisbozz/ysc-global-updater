@@ -92,6 +92,35 @@ def migrate_report(variant: str) -> pathlib.Path:
                       else f"migrate-report.{variant}.json")
 
 
+# Each build keeps its own patch set. The patterns start out identical -- most
+# Legacy patterns match Enhanced unchanged -- but they drift apart as soon as
+# one build needs a pattern re-derived, and the injected payloads are compiled
+# per build and never match across one.
+def patches_file(variant: str) -> pathlib.Path:
+    return (PATCHES if variant == LEGACY
+            else PATCHES.with_name(f"scrpatches.{variant}.json"))
+
+
+def repaired_file(variant: str) -> pathlib.Path:
+    return (REPAIRED if variant == LEGACY
+            else REPAIRED.with_name(f"scrpatches.{variant}.repaired.json"))
+
+
+def _dump_source(variant: str, new_build: str):
+    """The build to compare dumps against, and whether this is a bootstrap.
+
+    A variant's first build has no predecessor of its own. The two games share
+    their script content, so the other game's newest build is the closest
+    comparison that exists -- good enough to tell a pattern that still matches
+    from one that does not."""
+    earlier = versions.previous(DISASM, new_build)
+    if earlier:
+        return earlier, False
+    other = LEGACY if variant == ENHANCED else ENHANCED
+    candidates = versions.list_versions(DISASM, other)
+    return (candidates[-1] if candidates else None), True
+
+
 # ---------------------------------------------------------------- output ----
 
 def rule(title: str, width: int = 74) -> str:
@@ -169,19 +198,24 @@ def step_fetch(variant: str, new_build: str, ref: str,
         return True
 
     bad(f"{new_build}: {len(missing_c)} Skript(e), {len(missing_full)} Dump(s) fehlen")
-    note(f"scripts/{new_build}/")
+    if missing_full:
+        note(f"Dumps kommen aus der lokalen Installation, nicht vom Upstream:")
+        note(f"  python3 tools/extract_ysc.py --variant {variant} "
+             f"--build {new_build.replace('enhanced-', '', 1)} \\")
+        note("      --game <GTA-Ordner> --codewalker <CodeWalker.Core.dll>")
     if dry_run:
         note("DRY RUN: nicht geholt")
         return False
-    cmd = [ROOT / "fetch_update.sh", "--variant", variant,
-           new_build.replace("enhanced-", "", 1), ref]
-    if not ask(f"Mit {cmd[0].name} holen?", auto_yes):
-        bad("Ohne die Skripte kann kein weiterer Schritt laufen.")
-        return False
-    if run(cmd) != 0:
-        bad("fetch_update.sh fehlgeschlagen")
-        return False
-    return True
+    if missing_c:
+        cmd = [ROOT / "fetch_update.sh", "--variant", variant,
+               new_build.replace("enhanced-", "", 1), ref]
+        if not ask(f"Skripte mit {cmd[0].name} holen?", auto_yes):
+            bad("Ohne die Skripte kann kein weiterer Schritt laufen.")
+            return False
+        if run(cmd) != 0:
+            bad("fetch_update.sh fehlgeschlagen")
+            return False
+    return not missing_full
 
 
 def _unresolved_count(variant: str):
@@ -299,25 +333,22 @@ def _print_health(counts: dict) -> None:
             print(f"    {c(f'{status:11}', *status_colour(status))}: {counts[status]:3d}")
 
 
-def _no_dumps(variant: str) -> None:
-    note(f"Fuer {variant} gibt es keine entschluesselten .ysc.full-Dumps.")
-    note("Patterns lassen sich damit weder pruefen noch ableiten; die Patches")
-    note(f"werden mit enabled=false ausgeliefert. Details: {README}")
-
-
-def step_patterns(variant: str, old_build, new_build: str,
+def step_patterns(variant: str, old_build, new_build: str, bootstrap: bool,
                   dry_run: bool, auto_yes: bool) -> int:
     """Check and repair the scrpatch patterns. Returns the count still broken."""
     head("3. scrpatches pruefen")
-    if variant == ENHANCED:
-        ok("uebersprungen")
-        _no_dumps(variant)
+    patches = patches_file(variant)
+    if not patches.is_file():
+        bad(f"fehlt: {patches.relative_to(ROOT)}")
+        note("Ein neuer Build startet mit einer Kopie des zuletzt gepflegten Satzes.")
         return 0
     if not old_build:
         bad(f"kein Vergleichs-Build fuer {new_build} in scrpatches/disasm/")
         return 0
+    if bootstrap:
+        note(f"Erstlauf: verglichen gegen {old_build} aus der anderen Variante.")
 
-    counts, broken = _health(PATCHES, old_build, new_build)
+    counts, broken = _health(patches, old_build, new_build)
     _print_health(counts)
     if not broken:
         ok("alle Patterns gesund")
@@ -330,12 +361,13 @@ def step_patterns(variant: str, old_build, new_build: str,
     if not ask("update_patches.py starten? (fragt selbst nach jeder Aenderung)", auto_yes):
         return broken
 
-    cmd = [sys.executable, ROOT / "scrpatches" / "update_patches.py", "--new", new_build]
+    cmd = [sys.executable, ROOT / "scrpatches" / "update_patches.py",
+           "--new", new_build, "--old", old_build, "--patches", str(patches)]
     if auto_yes:
         cmd.append("--yes")
     run(cmd)
 
-    counts, broken = _health(PATCHES, old_build, new_build)
+    counts, broken = _health(patches, old_build, new_build)
     print()
     _print_health(counts)
     if broken:
@@ -345,31 +377,34 @@ def step_patterns(variant: str, old_build, new_build: str,
     return broken
 
 
-def step_payloads(variant: str, new_build: str, dry_run: bool, auto_yes: bool) -> bool:
+def step_payloads(variant: str, old_build, new_build: str,
+                  dry_run: bool, auto_yes: bool) -> bool:
     """Rebuild the injected customfuncs payloads. False = no usable artifact."""
     head("4. Payloads reparieren")
-    if variant == ENHANCED:
-        ok("uebersprungen")
-        _no_dumps(variant)
-        return True
+    patches = patches_file(variant)
+    repaired = repaired_file(variant)
+    if not patches.is_file() or not old_build:
+        bad("Schritt 3 hat kein Ergebnis geliefert")
+        return False
 
-    inputs = [PATCHES] + list((DISASM / new_build).glob("*.ysc.full"))
-    fresh = REPAIRED.is_file() and REPAIRED.stat().st_mtime > newest_mtime(inputs)
+    inputs = [patches] + list((DISASM / new_build).glob("*.ysc.full"))
+    fresh = repaired.is_file() and repaired.stat().st_mtime > newest_mtime(inputs)
 
     if fresh:
-        ok(f"{REPAIRED.relative_to(ROOT)} ist aktuell")
+        ok(f"{repaired.relative_to(ROOT)} ist aktuell")
         return True
 
-    bad(f"{REPAIRED.relative_to(ROOT)} fehlt oder ist aelter als seine Quellen")
-    note("Diese Datei ist das Deploy-Artefakt, nicht data/scrpatches.json:")
+    bad(f"{repaired.relative_to(ROOT)} fehlt oder ist aelter als seine Quellen")
+    note(f"Diese Datei ist das Deploy-Artefakt, nicht {patches.relative_to(ROOT)}:")
     note("nur hier sind die injizierten Payloads auf den neuen Build umgeschrieben.")
     if dry_run:
         note("DRY RUN: nicht repariert")
-        return REPAIRED.is_file()
+        return repaired.is_file()
     if not ask("repair_scrpatches.py jetzt laufen lassen?", auto_yes):
-        return REPAIRED.is_file()
+        return repaired.is_file()
     if run([sys.executable, ROOT / "scrpatches" / "repair_scrpatches.py",
-            "--new", new_build]) != 0:
+            "--new", new_build, "--old", old_build,
+            "--patches", str(patches)]) != 0:
         bad("repair_scrpatches.py fehlgeschlagen")
         return False
     return True
@@ -400,20 +435,6 @@ def _dirty(xenvious: pathlib.Path) -> list:
     return out
 
 
-def _park_all(patches_json: str) -> str:
-    """Every patch disabled, for a variant whose patterns cannot be verified.
-
-    The definitions are kept rather than dropped: each carries the payload and
-    the intent, which is the expensive part to reconstruct. They ship parked, so
-    the runner skips them until someone verifies a pattern for this build."""
-    patches = json.loads(patches_json)
-    for p in patches:
-        p["enabled"] = False
-        p["note"] = "unverified for Enhanced: pattern was derived from Legacy bytecode"
-        p.pop("derived_for", None)
-    return json.dumps(patches, indent=4) + "\n"
-
-
 def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
                 broken: int, dry_run: bool, auto_yes: bool) -> bool:
     """Write offsets.ini and scrpatches.json into OfflineData/<variant>."""
@@ -422,30 +443,26 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
     target_ini = offline / "offsets.ini"
     target_json = offline / "scrpatches.json"
     source_ini = migrated_ini(variant)
+    repaired = repaired_file(variant)
 
     if broken:
         bad(f"{broken} Patch(es) noch gebrochen -- Deploy blockiert")
         note("Erst Schritt 3 abschliessen, oder die Patches mit enabled=false parken.")
         return False
-    for path in (source_ini, REPAIRED, target_ini, target_json):
+    for path in (source_ini, repaired, target_ini, target_json):
         if not path.is_file():
             bad(f"fehlt: {path}")
             return False
 
-    counts = {}
-    if variant == ENHANCED:
-        new_json = _park_all(REPAIRED.read_text(encoding="utf-8"))
-        counts["DISABLED"] = len(json.loads(new_json))
-    else:
-        # The deploy artifact must be healthy too, not only the source file: it
-        # is a separate copy and can lag behind data/scrpatches.json.
-        counts, broken_deploy = _health(REPAIRED, old_build, new_build)
-        if broken_deploy:
-            bad(f"Deploy-Artefakt selbst hat {broken_deploy} gebrochene(n) Patch(es)")
-            _print_health(counts)
-            note("Schritt 4 neu laufen lassen.")
-            return False
-        new_json = REPAIRED.read_text(encoding="utf-8")
+    # The deploy artifact must be healthy too, not only the source file: it is
+    # a separate copy and can lag behind the patch set it was built from.
+    counts, broken_deploy = _health(repaired, old_build, new_build)
+    if broken_deploy:
+        bad(f"Deploy-Artefakt selbst hat {broken_deploy} gebrochene(n) Patch(es)")
+        _print_health(counts)
+        note("Schritt 4 neu laufen lassen.")
+        return False
+    new_json = repaired.read_text(encoding="utf-8")
 
     merged_ini, stats, unmapped = merge_offsets(
         source_ini.read_text(encoding="utf-8"),
@@ -519,8 +536,10 @@ def run_variant(variant: str, args, xenvious: pathlib.Path) -> bool:
     else:
         new_build = versions.resolve(SCRIPTS, None, variant=variant)
 
-    dump_old = (versions.resolve(DISASM, args.old, variant=variant) if args.old
-                else versions.previous(DISASM, new_build))
+    if args.old:
+        dump_old, bootstrap = versions.resolve(DISASM, args.old, variant=variant), False
+    else:
+        dump_old, bootstrap = _dump_source(variant, new_build)
 
     print(f"\n  {c('Xenvious update', 'bold', 'blue')}   "
           f"{c(variant, 'bold', 'cyan')} {ARROW} {c(new_build, 'cyan')}")
@@ -531,8 +550,9 @@ def run_variant(variant: str, args, xenvious: pathlib.Path) -> bool:
     if not step_fetch(variant, new_build, args.ref, args.dry_run, args.yes):
         return False
     step_offsets(variant, new_build, args.dry_run, args.yes)
-    broken = step_patterns(variant, dump_old, new_build, args.dry_run, args.yes)
-    step_payloads(variant, new_build, args.dry_run, args.yes)
+    broken = step_patterns(variant, dump_old, new_build, bootstrap,
+                           args.dry_run, args.yes)
+    step_payloads(variant, dump_old, new_build, args.dry_run, args.yes)
     return step_deploy(variant, xenvious, dump_old, new_build, broken,
                        args.dry_run, args.yes)
 

@@ -105,14 +105,16 @@ class TestVariantPaths(unittest.TestCase):
         self.assertEqual(ux.migrated_ini("legacy").name, "offsets.migrated.ini")
         self.assertEqual(ux.migrate_report("legacy").name, "migrate-report.json")
 
-    def test_parking_disables_every_patch_and_drops_build_markers(self):
-        payload = '[{"patch_name": "x", "enabled": true, "derived_for": "1.73-3889"}]'
-        parked = json.loads(ux._park_all(payload))
-        self.assertEqual(len(parked), 1)
-        self.assertIs(parked[0]["enabled"], False)
-        self.assertNotIn("derived_for", parked[0],
-                         "a marker naming a Legacy build is meaningless for Enhanced")
-        self.assertIn("note", parked[0])
+    def test_each_variant_has_its_own_patch_set(self):
+        # The patterns start out identical, but they drift as soon as one build
+        # needs a pattern re-derived -- and the injected payloads are compiled
+        # per build and never match across one.
+        self.assertNotEqual(ux.patches_file("legacy"), ux.patches_file("enhanced"))
+        self.assertNotEqual(ux.repaired_file("legacy"), ux.repaired_file("enhanced"))
+
+    def test_legacy_keeps_the_established_patch_file_names(self):
+        self.assertEqual(ux.patches_file("legacy").name, "scrpatches.json")
+        self.assertEqual(ux.repaired_file("legacy").name, "scrpatches.repaired.json")
 
 
 class TestScriptLists(unittest.TestCase):

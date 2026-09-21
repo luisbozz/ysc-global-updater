@@ -52,7 +52,28 @@ def main() -> int:
                                   "Default: newest folder in disasm/.")
     ap.add_argument("--old", help="Old build the payloads were built for. "
                                   "Default: the build right before --new.")
+    ap.add_argument("--patches", default=str(DATA),
+                    help="Patch file to repair. Each game build keeps its own, "
+                         "because the payloads are compiled per build.")
+    ap.add_argument("--out", help="Where the repaired copy goes. Default: "
+                                  "reports/<patch file stem>.repaired.json.")
     args = ap.parse_args()
+
+    # ROOT is scrpatches/, so a relative path is taken as the caller typed it
+    # (from the repo root, like every other tool here) and only then tried
+    # against scrpatches/ itself.
+    data_path = Path(args.patches)
+    if not data_path.is_absolute() and not data_path.is_file():
+        data_path = ROOT.parent / args.patches
+    # Keep the established name for the Legacy set; anything else gets a name
+    # derived from its own, so two builds cannot overwrite each other's result.
+    default_out = ("scrpatches.repaired.json" if data_path.name == DATA.name
+                   else data_path.stem + ".repaired.json")
+    out_path = Path(args.out) if args.out else REPORTS / default_out
+    if not out_path.is_absolute():
+        out_path = ROOT.parent / out_path
+    report_path = out_path.with_name(out_path.stem.replace(".repaired", "")
+                                     + "_customfuncs_repair.txt")
 
     new_build = versions.resolve(DISASM, args.new)
     old_build = (versions.resolve(DISASM, args.old) if args.old
@@ -61,7 +82,7 @@ def main() -> int:
         raise SystemExit("no earlier build in disasm/ -- pass --old <build>")
     print(f"[versions] repairing {old_build} -> {new_build}")
 
-    patches = json.loads(DATA.read_text())
+    patches = json.loads(data_path.read_text())
     scripts = sorted({p["script_name"] for p in patches if _is_injected(p)})
 
     contexts: dict[str, ScriptContext] = {}
@@ -128,7 +149,7 @@ def main() -> int:
         out_patches.append(q)
 
     REPORTS.mkdir(exist_ok=True)
-    (REPORTS / "scrpatches.repaired.json").write_text(json.dumps(out_patches, indent=4))
+    out_path.write_text(json.dumps(out_patches, indent=4))
 
     header = [
         "customfuncs payload repair report",
@@ -141,11 +162,11 @@ def main() -> int:
         header.append(f"skipped script {s}: {why}")
     if notes:
         header.append("")
-    (REPORTS / "customfuncs_repair.txt").write_text("\n".join(header + report))
+    report_path.write_text("\n".join(header + report))
 
     print("\n".join(header + report))
-    print(f"wrote {REPORTS/'scrpatches.repaired.json'}")
-    print(f"wrote {REPORTS/'customfuncs_repair.txt'}")
+    print(f"wrote {out_path}")
+    print(f"wrote {report_path}")
     return 0
 
 
