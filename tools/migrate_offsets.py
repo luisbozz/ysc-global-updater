@@ -875,6 +875,57 @@ def main() -> int:
     if family_notes:
         stats["migrated_family"] = stats.get("migrated_family", 0) + len(family_notes)
 
+    # Nachkorrektur: Vektor-Tripel zusammenhalten.
+    #
+    # A vector lives in three consecutive fields and the scripts only ever name
+    # the first, so the corpus shows the base and nothing for y and z. The
+    # resolver sees the base move and migrates x; y and z have no evidence of
+    # their own and stay where they were. goto_locaa1 came out as 77/76/77 --
+    # x moved by two, y and z did not, and x and z then addressed the same
+    # place. Only applied where the triple WAS consecutive and x did move, so a
+    # pair that was never a vector is left alone.
+    _VEC_LEAF = re.compile(r"^(.*)\.f_(\d+)$")
+    _vec_groups: dict = {}
+    for _m in re.finditer(r'^(OFFSET_.*?)([xyz])\s*=\s*"([^"]*)"',
+                          _ini_text, flags=re.MULTILINE):
+        _vec_groups.setdefault(_m.group(1), {})[_m.group(2)] = (
+            _m.group(1) + _m.group(2), _m.group(3))
+    _vec_fixed = 0
+    for _stem, _comp in _vec_groups.items():
+        if set(_comp) != {"x", "y", "z"}:
+            continue
+        _cur = {}
+        for _c, (_n, _old_val) in _comp.items():
+            _mm = re.search(rf'^{_n}\s*=\s*"([^"]*)"', migrated_text, flags=re.MULTILINE)
+            _cur[_c] = (_n, _old_val, _mm.group(1) if _mm else None)
+        if any(v[2] is None for v in _cur.values()):
+            continue
+        _old_leaf = {c: _VEC_LEAF.match(v[1]) for c, v in _cur.items()}
+        _new_leaf = {c: _VEC_LEAF.match(v[2]) for c, v in _cur.items()}
+        if any(v is None for v in _old_leaf.values()) or any(v is None for v in _new_leaf.values()):
+            continue
+        _o = {c: int(m.group(2)) for c, m in _old_leaf.items()}
+        _w = {c: int(m.group(2)) for c, m in _new_leaf.items()}
+        if not (_o["y"] == _o["x"] + 1 and _o["z"] == _o["x"] + 2):
+            continue                      # never was a vector triple
+        if _w["y"] == _w["x"] + 1 and _w["z"] == _w["x"] + 2:
+            continue                      # still consecutive, nothing to do
+        if _w["x"] == _o["x"]:
+            continue                      # x did not move; no basis to re-derive
+        for _c, _step in (("y", 1), ("z", 2)):
+            _name = _cur[_c][0]
+            _prefix = _new_leaf["x"].group(1)
+            _fixed = f"{_prefix}.f_{_w['x'] + _step}"
+            if _fixed == _cur[_c][2]:
+                continue
+            migrated_text = re.sub(rf'^({_name}\s*=\s*")[^"]*(")',
+                                   lambda m, v=_fixed: m.group(1) + v + m.group(2),
+                                   migrated_text, count=1, flags=re.MULTILINE)
+            changes.append((_name, _cur[_c][1], _fixed))
+            _vec_fixed += 1
+    if _vec_fixed:
+        stats["migrated_vector"] = _vec_fixed
+
     # Nachkorrektur: Tuneables-Offsets, deren semantischer Pfad nicht traegt.
     # Sie landen sonst in path_removed_in_new -- alter Pfad im neuen Build weg,
     # alter Wert behalten, keine Meldung. Greift nur, wo das Feld im neuen
