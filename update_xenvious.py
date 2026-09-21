@@ -210,6 +210,27 @@ def _offset_source(variant: str, new_build: str):
     return migrated_ini(LEGACY), legacy_build
 
 
+def _review_hint(variant: str) -> None:
+    """What an unresolved count does and does not mean.
+
+    Most entries on that list are offsets that offsets.ini stores in a
+    simplified form which never appears literally in any corpus -- they are
+    correct and were already on the list before this update. The count alone
+    therefore says nothing about whether the migration went well; comparing the
+    result against both corpora does."""
+    note("Die Liste enthaelt auch Offsets, die offsets.ini vereinfacht speichert")
+    note("und die deshalb in keinem Korpus woertlich vorkommen. Ob die Migration")
+    note("gut lief, zeigt der Vergleich gegen beide Korpora:")
+    # Its own corpus first, the other game's second: the result must fit the
+    # first better than the second, whatever the absolute numbers are.
+    other = LEGACY if variant == ENHANCED else ENHANCED
+    builds = [b for b in (versions.list_versions(SCRIPTS, variant)[-1:]
+                          + versions.list_versions(SCRIPTS, other)[-1:])]
+    corpora = " ".join(f"--corpus scripts/{b}" for b in builds)
+    note(f"  python3 tools/score_corpus.py --ini {migrated_ini(variant).relative_to(ROOT)} "
+         f"{corpora}")
+
+
 def step_offsets(variant: str, new_build: str, dry_run: bool, auto_yes: bool) -> bool:
     """Migrate offsets.ini to the new build. False = no usable result."""
     head("2. Offsets migrieren")
@@ -234,6 +255,7 @@ def step_offsets(variant: str, new_build: str, dry_run: bool, auto_yes: bool) ->
         ok(f"{out.relative_to(ROOT)} ist neuer als seine Quellen")
         if left:
             bad(f"{left} Offset(s) unaufgeloest -- siehe {migrate_report(variant).relative_to(ROOT)}")
+            _review_hint(variant)
         elif left == 0:
             ok("0 Offsets unaufgeloest")
         return True
@@ -254,6 +276,7 @@ def step_offsets(variant: str, new_build: str, dry_run: bool, auto_yes: bool) ->
     left = _unresolved_count(variant)
     if left:
         bad(f"{left} Offset(s) unaufgeloest -- siehe {migrate_report(variant).relative_to(ROOT)}")
+        _review_hint(variant)
     else:
         ok("0 Offsets unaufgeloest")
     return True
