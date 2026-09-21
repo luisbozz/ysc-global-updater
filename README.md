@@ -247,6 +247,42 @@ Custom targets: `--target <path>`, repeatable.
 Rebuild the app (Windows, Visual Studio/MSBuild) for the `OfflineData` copy to
 take effect.
 
+## Byte patterns are a separate problem
+
+`offsets.ini` has two kinds of entry, and only one of them is migrated here.
+
+`[OFFSETS]` names script globals. Those are resolved from the decompiled
+scripts, which is what this whole toolchain does.
+
+`[AOB]` names places in the **executable**. The scripts say nothing about
+executable code, so nothing here migrates those — and they break whenever
+Rockstar rebuilds the game, which is every update.
+
+They break quietly, which is the part worth knowing. A pattern that matches
+nothing makes the scan return zero, and the caller computes a pointer from
+address zero: a plausible-looking value that points nowhere. On 3889 that is
+exactly what `worldptr` did, and it looked like a broken offset migration.
+
+```bash
+python3 tools/check_aob.py --ini /opt/Xenvious/Xenvious/OfflineData/legacy/offsets.ini
+```
+
+The game has to be running. The executable on disk is packed, so scanning the
+file finds nothing at all — the code only exists in the process. The tool dumps
+the main module out of the live game and scans that.
+
+It knows which patterns the shipped C# actually uses. Six of the seventeen are
+dead weight: `presets`, `props`, `props_new` and `creator_menu` are read into a
+field and never scanned, `getBlipPointer` is never called, and
+`getCheckCreatorPointer` only from a commented-out line. Pass `--all` to see
+them anyway.
+
+When a pattern does need replacing, derive it against the running game and
+verify the chain it produces rather than trusting the match. For `worldptr`
+that meant resolving the global, following `+8` to the local ped, and reading
+back world coordinates at `+0x90` with a unit-length matrix at `+0x60`. A
+pattern that matches is not yet a pattern that is right.
+
 ## Adding a new offset
 
 Add one line to the `offsets.ini` matching your *current* version and re-run the
@@ -323,6 +359,7 @@ fresh scan.
 | `score_corpus.py` | scores a result by literal presence in a script corpus |
 | `dialect.py` | normalises the two decompiler spellings before matching |
 | `extract_ysc.py` | pulls decrypted script dumps out of an installed game |
+| `check_aob.py` | checks the `[AOB]` byte patterns against a running game |
 | `run_pipeline.py` | offset-side entry point plus the summary |
 | `../update_xenvious.py` | full update chain, offsets + scrpatches + deploy |
 | `infer_offsets.py` | legacy pattern/context matcher |
