@@ -397,44 +397,76 @@ def step_patterns(variant: str, old_build, new_build: str, bootstrap: bool,
     return broken
 
 
-def check_customfuncs_source(variant: str, target: pathlib.Path | None = None) -> None:
-    """Warn when a scrpatches.json no longer matches the customfuncs sources.
+def check_customfuncs_source(variant: str) -> None:
+    """Warn when data/scrpatches.json no longer matches the customfuncs sources.
 
-    Checks data/scrpatches.json by default. Pass ``target`` to point this at a
-    *deployed* copy instead -- catch the case a check against data/ cannot see:
-    the deployed file was edited directly (by hand, or by a narrower one-off
-    script) and now disagrees with the source even though data/scrpatches.json
-    itself is untouched. That happened once already: a same-build global
-    rebase was applied straight to Xenvious/OfflineData/legacy/scrpatches.json,
-    fixed the GLOBAL_U24 operands, and silently left the payload's internal
-    CALL targets pointing tens of KB into unrelated code -- a check against
-    data/ alone had nothing to compare that against, because data/ was never
-    touched. Only legacy carries sources today, so this is a warning, not a
-    gate; on a target mismatch it is a loud one.
+    build_customfuncs.py assembles the .ysa sources against the OLDEST build in
+    disasm/ -- the build they are authored for -- because that is the only build
+    whose external CALL addresses appear literally in the source text. It has no
+    way to translate those addresses to a different build; only
+    repair_scrpatches.py's fingerprinting can do that. So this check only ever
+    means something against data/scrpatches.json (always authored-build), never
+    against a deployed copy that has been through a version migration -- see
+    check_customfuncs_deployed() for that comparison instead.
     """
     builder = ROOT / "scrpatches" / "build_customfuncs.py"
     if variant != LEGACY or not builder.is_file():
         return
-    checking_deploy = target is not None
-    cmd = [sys.executable, str(builder), "--check"]
-    if checking_deploy:
-        cmd += ["--target", str(target)]
-    res = subprocess.run(cmd, cwd=str(ROOT / "scrpatches"), capture_output=True, text=True)
-    label = "dem deployten scrpatches.json" if checking_deploy else "data/scrpatches.json"
+    res = subprocess.run([sys.executable, str(builder), "--check"],
+                         cwd=str(ROOT / "scrpatches"), capture_output=True, text=True)
     if res.returncode == 0:
-        ok(f"customfuncs-Quellen stimmen mit {label} ueberein")
+        ok("customfuncs-Quellen stimmen mit data/scrpatches.json ueberein")
         return
-    bad(f"customfuncs-Quellen weichen von {label} ab")
+    bad("customfuncs-Quellen weichen von data/scrpatches.json ab")
     for line in res.stdout.splitlines():
         if line.startswith("DIFF") or line.startswith("!!"):
             note(line)
-    if checking_deploy:
-        note(f"{target} wurde ausserhalb dieser Pipeline geaendert und weicht jetzt")
-        note("von den Quellen ab -- das ist der Stand, den die App tatsaechlich laedt.")
-        note(f"Reparieren:  python3 scrpatches/build_customfuncs.py --write --target {target}")
-    else:
-        note("scrasm/customfuncs/src/*.ysa beschreibt nicht mehr, was ausgeliefert wird.")
-        note("Entweder build_customfuncs.py --write, oder gen_customfuncs_src.py.")
+    note("scrasm/customfuncs/src/*.ysa beschreibt nicht mehr, was ausgeliefert wird.")
+    note("Entweder build_customfuncs.py --write, oder gen_customfuncs_src.py.")
+
+
+def check_customfuncs_deployed(variant: str, deployed: pathlib.Path,
+                               repaired: pathlib.Path) -> None:
+    """Confirm a deployed scrpatches.json's injected payloads match the repair.
+
+    The one artifact that actually knows what a customfuncs payload should look
+    like *for the build being deployed* is reports/scrpatches.repaired.json --
+    repair_scrpatches.py relocates the injection base, the internal CALLs and
+    (via fingerprinting) the external CALLs to that specific build. Comparing a
+    deployed file against build_customfuncs.py's fresh-assembled sources instead
+    would compare it against the WRONG build whenever a migration has happened,
+    and flag a correctly deployed payload as broken -- which is exactly what
+    happened once already, and the "fix" for it replaced a build-1.73-3889
+    payload with build-1.71-3586 addresses, making it worse.
+    """
+    if variant != LEGACY or not deployed.is_file() or not repaired.is_file():
+        return
+
+    def injections(patches: list) -> dict:
+        out = {}
+        for p in patches:
+            b = p.get("bytes_to_patch", "")
+            if (p.get("category") == "customfuncs" and "{" not in b
+                    and b.replace(" ", "").upper().startswith("2D")):
+                out[p["script_name"]] = b
+        return out
+
+    dep = injections(json.loads(deployed.read_text()))
+    rep = injections(json.loads(repaired.read_text()))
+    mismatched = [name for name, b in rep.items() if dep.get(name) != b]
+    if not mismatched:
+        ok("deployte customfuncs-Payloads == reports/scrpatches.repaired.json")
+        return
+    try:
+        repaired_label = repaired.relative_to(ROOT)
+    except ValueError:
+        repaired_label = repaired
+    bad(f"{len(mismatched)} deployte customfuncs-Payload(s) weichen von "
+        f"{repaired_label} ab:")
+    for name in mismatched:
+        note(name)
+    note("Das ist der Build, fuer den repair_scrpatches.py sie zuletzt repariert hat --")
+    note("ein Abweichen hier heisst, es wurde etwas anderes deployt oder von Hand editiert.")
 
 
 def step_payloads(variant: str, old_build, new_build: str,
@@ -568,7 +600,7 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
     target_ini.write_text(merged_ini, encoding="utf-8", errors="surrogateescape")
     target_json.write_text(new_json, encoding="utf-8")
     ok(f"geschrieben: {variant}/{target_ini.name}, {variant}/{target_json.name}")
-    check_customfuncs_source(variant, target=target_json)
+    check_customfuncs_deployed(variant, target_json, repaired)
     return True
 
 

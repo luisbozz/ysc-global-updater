@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from .disasm import disassemble
 from .natives import NativeResolver
+from . import structoffsets
 from .funcsig import FunctionIndex, build_address_map
 
 # ENTER 4,58 + LOCAL_U8_LOAD 3 -- the sacrificial function the payload overwrites
@@ -42,6 +43,8 @@ class RepairReport:
     internal_calls: int = 0
     external_resolved: list = field(default_factory=list)  # (old, new, confidence)
     external_unresolved: list = field(default_factory=list)  # old addresses
+    offsets_updated: list = field(default_factory=list)  # (op, old, new)
+    offsets_missing: list = field(default_factory=list)  # (op, old) with no mapping
     stride_updated: list = field(default_factory=list)   # (global, ioffset, old, new)
     stride_review: list = field(default_factory=list)    # (global, ioffset, value)
     globals_seen: set = field(default_factory=set)
@@ -49,7 +52,8 @@ class RepairReport:
     @property
     def ok(self) -> bool:
         return (not self.native_missing and not self.external_unresolved
-                and not self.stride_review)
+                and not self.stride_review
+                and not self.offsets_missing)
 
     @property
     def needs_review(self) -> list[int]:
@@ -184,12 +188,38 @@ class ScriptContext:
     def confidence_of(self, old_addr: int) -> str:
         return self.tier.get(old_addr, "unmatched")
 
-    def repair(self, old_bytes: bytes, script: str) -> tuple[bytes, RepairReport]:
+    def repair(self, old_bytes: bytes, script: str,
+               builds: tuple[str, str] | None = None) -> tuple[bytes, RepairReport]:
         if self.old_base is None or self.new_base is None:
             raise ValueError("sacrificial anchor is not unique; cannot locate base")
-        return repair_payload(
+        out, rep = repair_payload(
             old_bytes, self.old_base, self.new_base,
             self.old_resolver, self.new_resolver, self.addr_map,
             script=script, confidence_of=self.confidence_of,
             old_strides=self.old_strides, new_strides=self.new_strides,
         )
+        if builds is not None:
+            out = self._migrate_offsets(out, rep, builds)
+        return out, rep
+
+    def _migrate_offsets(self, payload: bytes, rep: RepairReport,
+                         builds: tuple[str, str]) -> bytes:
+        """Move the payload's struct field offsets onto the new build's layout.
+
+        The offsets an access chain walks -- ``IOFFSET_S16``, ``IOFFSET_U8``,
+        ``PUSH_CONST_U24`` -- describe one build's layout of the structure. Only
+        array strides were being migrated, so a payload kept indexing the
+        tuneables at the old field positions and wrote over unrelated arrays.
+        Anything without a mapping is recorded and makes the report not ``ok``,
+        because shipping an unmigrated offset is exactly the failure this
+        exists to prevent.
+        """
+        old_build, new_build = builds
+        res = structoffsets.migrate(payload, old_build, new_build,
+                                    self.old_full.code, self.new_full.code)
+        rep.offsets_missing.extend(res.missing)
+        rep.offsets_missing.extend((op, val) for op, val, _ in res.unverified)
+        for (op, old_val), new_val in sorted(res.mapped.items()):
+            if old_val != new_val:
+                rep.offsets_updated.append((op, old_val, new_val))
+        return structoffsets.apply(payload, res.mapped)

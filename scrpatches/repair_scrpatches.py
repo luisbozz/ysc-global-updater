@@ -108,7 +108,8 @@ def main() -> int:
         if _is_injected(p) and p["script_name"] in contexts:
             ctx = contexts[p["script_name"]]
             raw = parse_hex(p["bytes_to_patch"])
-            new_bytes, rep = ctx.repair(raw, p["script_name"])
+            new_bytes, rep = ctx.repair(raw, p["script_name"],
+                                        builds=(args.old, args.new))
             q["bytes_to_patch"] = _hex(new_bytes)
             n_repaired += 1
             if not rep.ok:
@@ -134,6 +135,15 @@ def main() -> int:
             if rep.native_missing:
                 report.append(f"    !! natives missing from new table: "
                               + ", ".join(rep.native_missing))
+            if rep.offsets_updated:
+                report.append(f"    struct offsets migrated ({len(rep.offsets_updated)}):")
+                for op, o, n in sorted(set(rep.offsets_updated)):
+                    report.append(f"        {op} {o} -> {n}")
+            if rep.offsets_missing:
+                report.append(f"    !! struct offsets WITHOUT a mapping "
+                              f"({len(rep.offsets_missing)}):")
+                for op, o in sorted(set(rep.offsets_missing)):
+                    report.append(f"        {op} {o}  -- payload would keep the old layout")
             if rep.stride_updated:
                 report.append(f"    embedded strides updated ({len(rep.stride_updated)}):")
                 for g, io, o, n in sorted(set(rep.stride_updated)):
