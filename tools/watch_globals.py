@@ -72,6 +72,47 @@ foreach ($idx in [int[]]@({indices})) {{
 [M]::Close()
 """
 
+PS_BLOCK = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class K {{
+  [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(int a, bool i, int p);
+  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool ReadProcessMemory(IntPtr h, IntPtr a, byte[] b, int s, out IntPtr r);
+  [DllImport("kernel32.dll")] public static extern int VirtualQueryEx(IntPtr h, IntPtr a, out MBI m, int l);
+  [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)]
+  public struct MBI {{ public IntPtr BaseAddress; public IntPtr AllocationBase;
+    public int AllocationProtect; public int __a; public IntPtr RegionSize;
+    public int State; public int Protect; public int Type; public int __b; }}
+  static IntPtr h = IntPtr.Zero;
+  public static void Open(int pid){{ h = OpenProcess(0x0010|0x0400,false,pid); if(h==IntPtr.Zero) throw new Exception("OpenProcess "+Marshal.GetLastWin32Error()); }}
+  public static void Close(){{ CloseHandle(h); }}
+  // null rather than a silently zero-filled buffer when the read is short:
+  // asking for more than the block holds must look like failure, not like
+  // 4096 empty slots.
+  public static byte[] R(long a,int n){{ byte[] b=new byte[n]; IntPtr r;
+    bool okr = ReadProcessMemory(h,(IntPtr)a,b,n,out r);
+    if (!okr || r.ToInt64() != n) return null; return b; }}
+  public static long P(long a){{ byte[] b=R(a,8); if (b==null) return 0; return BitConverter.ToInt64(b,0); }}
+  public static long Size(long a){{ MBI m; if (VirtualQueryEx(h,(IntPtr)a, out m, Marshal.SizeOf(typeof(MBI)))==0) return -1; return m.RegionSize.ToInt64(); }}
+  public static int Prot(long a){{ MBI m; if (VirtualQueryEx(h,(IntPtr)a, out m, Marshal.SizeOf(typeof(MBI)))==0) return -1; return m.Protect; }}
+}}
+"@ -Language CSharp
+$p = Get-Process -Name '{process}' -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $p) {{ Write-Output 'NOPROC'; exit 1 }}
+[K]::Open($p.Id)
+$table = $p.MainModule.BaseAddress.ToInt64() + {table_rva}
+$ptr = [K]::P($table + 8 * {block})
+if ($ptr -le 0x10000) {{ Write-Output 'NOBLOCK'; [K]::Close(); exit 0 }}
+$sz = [K]::Size($ptr)
+$raw = [K]::R($ptr, [int]$sz)
+if ($raw -eq $null) {{ Write-Output 'READFAIL'; [K]::Close(); exit 0 }}
+Write-Output ("META {{0}} {{1}} {{2}}" -f $ptr, $sz, [K]::Prot($ptr + $sz))
+Write-Output ([Convert]::ToBase64String($raw))
+[K]::Close()
+"""
+
 PS_DUMP = r"""
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @"
@@ -148,7 +189,79 @@ def offsets_from_ini(path: pathlib.Path) -> dict:
     return out
 
 
+def read_block(process: str, rva: int, block: int, workdir: pathlib.Path):
+    """One whole global block per read. Returns (base, slots, guard, values)."""
+    import base64 as _b64
+    out = run_ps(PS_BLOCK.format(process=process, table_rva=rva, block=block), workdir)
+    if "NOPROC" in out:
+        return None
+    lines = [l for l in out.splitlines() if l.strip()]
+    meta = next((l for l in lines if l.startswith("META ")), None)
+    if meta is None:
+        return None
+    _, ptr, size, guard = meta.split()
+    payload = lines[lines.index(meta) + 1]
+    raw = _b64.b64decode(payload)
+    slots = len(raw) // 8
+    values = [int.from_bytes(raw[8 * i:8 * i + 4], "little", signed=True)
+              for i in range(slots)]
+    return int(ptr), slots, int(guard), values
+
+
+def watch_block(process: str, rva: int, block: int, interval: float,
+                seconds: float, workdir: pathlib.Path) -> int:
+    """Watch every slot of one block.
+
+    The point is the free tail. A scratch global is only safe while the block
+    it sits in is both large enough to contain it and not using that slot --
+    and the second half of that is not static, because the owning scripts grow
+    between builds and between sessions.
+    """
+    first = read_block(process, rva, block, workdir)
+    if first is None:
+        print(f"block {block} not readable -- is {process} running?", file=sys.stderr)
+        return 1
+    ptr, slots, guard, baseline = first
+    used = max((i for i, v in enumerate(baseline) if v != 0), default=-1)
+    print(f"\n  {process}   block {block} at 0x{ptr:X}   {slots} slot(s)")
+    print(f"  highest non-zero slot {used}, {slots - 1 - used} free above it, "
+          f"guard page protect 0x{guard:X}"
+          f"{'  (PAGE_NOACCESS)' if guard == 1 else ''}")
+    print(f"  base index {block << 18}  ->  {(block << 18) + slots - 1}")
+    print(f"\n  watching. Switch creator / mode now.\n")
+
+    deadline, reads, high = time.time() + seconds, 0, used
+    while time.time() < deadline:
+        cur = read_block(process, rva, block, workdir)
+        if cur is None:
+            print("  block went away", file=sys.stderr)
+            return 1
+        _, now_slots, _, values = cur
+        if now_slots != slots:
+            print(f"  [{time.strftime('%H:%M:%S')}] BLOCK RESIZED "
+                  f"{slots} -> {now_slots} slot(s)")
+            slots, baseline = now_slots, values
+            continue
+        for i, v in enumerate(values):
+            if baseline[i] != v:
+                print(f"  [{time.strftime('%H:%M:%S')}] slot {i} "
+                      f"(index {(block << 18) + i})  {baseline[i]} -> {v}")
+                baseline[i] = v
+                high = max(high, i)
+        reads += 1
+        time.sleep(interval)
+    print(f"\n  done, {reads} read(s). Highest slot touched: {high} "
+          f"(of {slots - 1}).\n")
+    return 0
+
+
 def main() -> int:
+    # A watch you cannot read until it ends is not a watch. Without this,
+    # a redirected run buffers every finding until the process exits.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--variant", choices=(versions.LEGACY, versions.ENHANCED),
@@ -157,12 +270,27 @@ def main() -> int:
     ap.add_argument("--span", type=int, default=40,
                     help="How many slots around --index to watch (default 40).")
     ap.add_argument("--ini", help="Watch every global an offsets.ini names.")
+    ap.add_argument("--block", type=int,
+                    help="Watch a whole global block (0-63) in one read per poll. "
+                         "Use this to prove a scratch global's home stays free.")
     ap.add_argument("--interval", type=float, default=1.0, help="Seconds between reads.")
     ap.add_argument("--seconds", type=float, default=120.0, help="How long to watch.")
     args = ap.parse_args()
 
-    if not args.index and not args.ini:
-        ap.error("give --index or --ini")
+    if args.block is None and not args.index and not args.ini:
+        ap.error("give --index, --ini or --block")
+
+    if args.block is not None:
+        with tempfile.TemporaryDirectory() as td:
+            workdir = pathlib.Path(td)
+            process = PROCESS[args.variant]
+            rva = table_rva(process, workdir)
+            if rva is None:
+                print(f"global table not found -- is {process} running?",
+                      file=sys.stderr)
+                return 1
+            return watch_block(process, rva, args.block, args.interval,
+                               args.seconds, workdir)
 
     names, indices = {}, []
     if args.ini:
