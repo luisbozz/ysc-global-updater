@@ -21,9 +21,11 @@ or use Mod -> Scr Patches in the app, which toggles the same flags live.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import pathlib
 import sys
+import tempfile
 
 DEFAULT_TARGET = "/opt/Xenvious/Xenvious/OfflineData/legacy/scrpatches.json"
 
@@ -41,7 +43,14 @@ def key_of(patch: dict) -> str:
 
 
 def baseline_path(target: pathlib.Path) -> pathlib.Path:
-    return target.with_name(target.name + ".bisect-baseline.json")
+    """Where the pre-bisect state is remembered.
+
+    Deliberately not next to the target: OfflineData is compiled into the exe
+    file by file, and a stray file there is an unregistered embedded resource
+    that trips the build checks."""
+    return pathlib.Path(tempfile.gettempdir()) / (
+        "bisect-baseline-" + hashlib.sha1(
+            str(target.resolve()).encode()).hexdigest()[:12] + ".json")
 
 
 def baseline(target: pathlib.Path, patches: list) -> dict:
@@ -58,18 +67,35 @@ def baseline(target: pathlib.Path, patches: list) -> dict:
     return state
 
 
-# Patches that only work as a set. The customfuncs injection replaces a
-# four-parameter function with a nought-parameter one, and a sibling patch
-# removes the argument setup at the call site to match. Disable the injection
-# on its own and the caller still skips the arguments while the original
-# function expects them -- the game crashes on the next call.
+# The customfuncs patches of one script depend on each other, but only in one
+# direction. One of them writes a whole function body into the script (its
+# payload opens with ENTER); the others rewrite call sites to use it. A call
+# site pointed at a function that was never injected crashes the game -- that
+# is what happened here. The injection on its own is harmless: a function
+# nobody calls does nothing.
+#
+# So they are not one block. The provider can be switched alone, and the
+# dependents are only offered while it is on.
 GROUPED_CATEGORY = "customfuncs"
+ENTER_OPCODE = "2D"
 
 
-def group_of(patch: dict) -> str | None:
-    """The unit a patch may be switched in, or None if it stands alone."""
-    if patch.get("category") == GROUPED_CATEGORY:
-        return f"{GROUPED_CATEGORY}:{patch.get('script_name', '?')}"
+def is_provider(patch: dict) -> bool:
+    """Whether this patch injects a function body rather than redirecting to one."""
+    if patch.get("category") != GROUPED_CATEGORY:
+        return False
+    first = (patch.get("bytes_to_patch") or "").split()
+    return bool(first) and first[0].upper() == ENTER_OPCODE
+
+
+def provider_for(patches: list, patch: dict):
+    """The injection a dependent needs, or None."""
+    if patch.get("category") != GROUPED_CATEGORY or is_provider(patch):
+        return None
+    for other in patches:
+        if (is_provider(other)
+                and other.get("script_name") == patch.get("script_name")):
+            return other
     return None
 
 
@@ -83,16 +109,7 @@ def pool(patches: list, base: dict) -> list:
     live = [i for i, p in enumerate(patches) if base.get(key_of(p), True)]
     live.sort(key=lambda i: (patches[i].get("script_name") or "",
                              patches[i].get("patch_name") or ""))
-    # One entry per group, keeping the first member's position.
-    seen, out = set(), []
-    for i in live:
-        g = group_of(patches[i])
-        if g is None:
-            out.append([i])
-        elif g not in seen:
-            seen.add(g)
-            out.append([j for j in live if group_of(patches[j]) == g])
-    return out
+    return [[i] for i in live]
 
 
 def parse_range(spec: str, size: int) -> set:
@@ -131,18 +148,23 @@ def main() -> int:
     base = baseline(path, patches)
     order = pool(patches, base)
     parked = [p for p in patches if not base.get(key_of(p), True)]
-    grouped = sum(len(g) - 1 for g in order if len(g) > 1)
+    grouped = sum(1 for g in order if provider_for(patches, patches[g[0]]) is not None)
 
     if args.list or not (args.disable or args.enable or args.reset):
         print(f"\n  {path}")
-        print(f"  {len(order)} switch(es), {grouped} patch(es) tied into a group, "
+        print(f"  {len(order)} switch(es), {grouped} need an injection first, "
               f"{len(parked)} parked and left alone\n")
         for n, group in enumerate(order, 1):
             p = patches[group[0]]
             if args.only and args.only not in (p.get("script_name") or ""):
                 continue
             state = "on " if p.get("enabled", True) else "OFF"
-            suffix = f"  (+{len(group) - 1} im Verbund)" if len(group) > 1 else ""
+            if is_provider(p):
+                suffix = "  [Injektion]"
+            elif provider_for(patches, p) is not None:
+                suffix = "  [braucht Injektion]"
+            else:
+                suffix = ""
             print(f"   {n:3d}  [{state}]  {p.get('patch_name', '?')[:44]:44s} "
                   f"{p.get('script_name', '?')}{suffix}")
         print()
@@ -158,6 +180,17 @@ def main() -> int:
     for n, group in enumerate(order, 1):
         for i in group:
             patches[i]["enabled"] = n not in off
+
+    # A call site rewritten to reach a function that was never injected crashes
+    # the game, so that combination is never written out.
+    forced = []
+    for p in patches:
+        if not p.get("enabled", True):
+            continue
+        provider = provider_for(patches, p)
+        if provider is not None and not provider.get("enabled", True):
+            p["enabled"] = False
+            forced.append(p.get("patch_name", "?"))
     # Never resurrect something that was parked before this started.
     for p in patches:
         if not base.get(key_of(p), True):
@@ -177,9 +210,10 @@ def main() -> int:
     for n in rows:
         group = order[n - 1]
         p = patches[group[0]]
-        suffix = f"  (+{len(group) - 1} im Verbund)" if len(group) > 1 else ""
         print(f"   {n:3d}  {p.get('patch_name', '?')[:44]:44s} "
-              f"{p.get('script_name', '?')}{suffix}")
+              f"{p.get('script_name', '?')}")
+    if forced:
+        print(f"\n  auto-off, needs its injection: {', '.join(sorted(set(forced)))}")
     print("\n  rebuild, then test\n")
     return 0
 

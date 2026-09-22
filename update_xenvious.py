@@ -37,6 +37,7 @@ import difflib
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -225,6 +226,24 @@ def _unresolved_count(variant: str):
     return len(json.loads(path.read_text(encoding="utf-8")).get("unresolved", []))
 
 
+def authored_for(ini: pathlib.Path):
+    """The build an offsets.ini was written against, if it says so.
+
+    Guessing this from the folder listing is wrong whenever a build was fetched
+    that the file never passed through: offsets.ini is authored for 1.71-3586,
+    scripts/ also holds 1.72-3788, and "the build before 1.73" picked the 1.72
+    one. The migration then compared a 1.71 file against 1.72 code and rewrote
+    almost every offset into nonsense -- 913 of 988 values fitting the new
+    corpus fell to 86."""
+    if not ini.is_file():
+        return None
+    for line in ini.read_text(encoding="utf-8", errors="replace").splitlines()[:20]:
+        m = re.match(r"^\s*;\s*authored-for:\s*(\S+)", line)
+        if m:
+            return m.group(1)
+    return None
+
+
 def _offset_source(variant: str, new_build: str):
     """(source ini, old build) for the offset migration.
 
@@ -236,7 +255,8 @@ def _offset_source(variant: str, new_build: str):
     been migrated before, the migration runs Enhanced-to-Enhanced like any
     other update."""
     if variant == LEGACY:
-        return SOURCE_OFFSETS, versions.previous(SCRIPTS, new_build)
+        return SOURCE_OFFSETS, authored_for(SOURCE_OFFSETS) or versions.previous(
+            SCRIPTS, new_build)
     earlier = versions.previous(SCRIPTS, new_build)
     if earlier:
         return migrated_ini(ENHANCED), earlier
