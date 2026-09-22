@@ -97,6 +97,26 @@ def migrate_report(variant: str) -> pathlib.Path:
 # Legacy patterns match Enhanced unchanged -- but they drift apart as soon as
 # one build needs a pattern re-derived, and the injected payloads are compiled
 # per build and never match across one.
+def authored_build() -> str:
+    """The build the payloads in data/ are written against.
+
+    repair_scrpatches.py rewrites a payload from that build onto the target, so
+    it is the only correct --old for step 4. The rest of the chain means "the
+    build before the new one" by old, which is a different number as soon as
+    more than one game update has passed -- and migrating from the wrong source
+    moves addresses that were never there.
+    """
+    marker = ROOT / "scrpatches" / "data" / "scrpatches.authored-for"
+    if marker.is_file():
+        label = marker.read_text().strip()
+        if label:
+            return label
+    # No marker: fall back to the oldest dump we have, which is the convention
+    # build_customfuncs.py already assembles against.
+    builds = versions.list_versions(DISASM)
+    return builds[0] if builds else None
+
+
 def patches_file(variant: str) -> pathlib.Path:
     return (PATCHES if variant == LEGACY
             else PATCHES.with_name(f"scrpatches.{variant}.json"))
@@ -495,8 +515,12 @@ def step_payloads(variant: str, old_build, new_build: str,
         return repaired.is_file()
     if not ask("repair_scrpatches.py jetzt laufen lassen?", auto_yes):
         return repaired.is_file()
+    authored = authored_build()
+    if authored and authored != old_build:
+        note(f"Payload-Quellbuild ist {authored}, nicht {old_build} "
+             f"(siehe data/scrpatches.authored-for)")
     if run([sys.executable, ROOT / "scrpatches" / "repair_scrpatches.py",
-            "--new", new_build, "--old", old_build,
+            "--new", new_build, "--old", authored or old_build,
             "--patches", str(patches)]) != 0:
         bad("repair_scrpatches.py fehlgeschlagen")
         return False

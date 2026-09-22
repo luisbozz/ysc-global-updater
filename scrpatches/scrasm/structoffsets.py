@@ -86,6 +86,30 @@ OFFSETS = {
         ("IOFFSET_U8_LOAD", 23): 23,
         ("ARRAY_U8_LOAD", 1): 1,
     },
+    # Enhanced is a separate game built from the same 1.73 script content, so
+    # most of the layout matches Legacy's 1.73-3889 exactly -- the root chain,
+    # the field offsets, the array strides. The tuneables index does not:
+    # 125909 resolves to 127184 on Legacy and 133684 here. Measured by the
+    # cluster's signature rather than by value, because the two builds' index
+    # lists differ in length (700 against 721) so position means nothing:
+    # 125909/125914/125945/125976 occur 25/10/12/7 times at spacings +5/+31/+31,
+    # and exactly one run in Enhanced matches that.
+    ("1.71-3586", "enhanced-1.73-1158"): {
+        ("IOFFSET_S16", 3605): 3838,
+        ("ARRAY_U16", 26949): 26988,
+        ("IOFFSET_S16", 3152): 3155,
+        ("IOFFSET_S16", 6789): 6792,
+        ("IOFFSET_S16", 6841): 6844,
+        ("IOFFSET_S16", 6893): 6896,
+        ("PUSH_CONST_U24", 125909): 133684,
+        ("IOFFSET_U8", 16): 16,
+        ("IOFFSET_U8", 19): 19,
+        ("ARRAY_U8", 36): 36,
+        ("ARRAY_U8", 3): 3,
+        ("IOFFSET_U8_LOAD", 12): 13,
+        ("IOFFSET_U8_LOAD", 23): 23,
+        ("ARRAY_U8_LOAD", 1): 1,
+    },
 }
 
 # (old build, new build) -> script -> {old static -> new static}
@@ -101,6 +125,11 @@ STATICS = {
         "fm_lts_creator": {8684: 8883},
         "fm_capture_creator": {8321: 8520},
         "fm_race_creator": {50517: 51129},
+    },
+    ("1.71-3586", "enhanced-1.73-1158"): {
+        "fm_lts_creator": {8684: 9185},
+        "fm_capture_creator": {8321: 8822},
+        "fm_race_creator": {50517: 51531},
     },
 }
 
