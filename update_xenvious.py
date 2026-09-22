@@ -397,6 +397,30 @@ def step_patterns(variant: str, old_build, new_build: str, bootstrap: bool,
     return broken
 
 
+def check_customfuncs_source(variant: str) -> None:
+    """Warn when the .ysa sources no longer describe the payloads we ship.
+
+    The payloads are what the game gets; the sources are what a human reads and
+    edits. If they drift, the readable version silently stops being true -- the
+    same class of mistake that left the scratch globals pointing outside their
+    block. Only legacy carries sources today, so this is a warning, not a gate.
+    """
+    builder = ROOT / "scrpatches" / "build_customfuncs.py"
+    if variant != LEGACY or not builder.is_file():
+        return
+    res = subprocess.run([sys.executable, str(builder), "--check"],
+                         cwd=str(ROOT / "scrpatches"), capture_output=True, text=True)
+    if res.returncode == 0:
+        ok("customfuncs-Quellen stimmen mit den Payloads ueberein")
+        return
+    bad("customfuncs-Quellen weichen von den Payloads ab")
+    for line in res.stdout.splitlines():
+        if line.startswith("DIFF") or line.startswith("!!"):
+            note(line)
+    note("scrasm/customfuncs/src/*.ysa beschreibt nicht mehr, was ausgeliefert wird.")
+    note("Entweder build_customfuncs.py --write, oder gen_customfuncs_src.py.")
+
+
 def step_payloads(variant: str, old_build, new_build: str,
                   dry_run: bool, auto_yes: bool) -> bool:
     """Rebuild the injected customfuncs payloads. False = no usable artifact."""
@@ -406,6 +430,7 @@ def step_payloads(variant: str, old_build, new_build: str,
     if not patches.is_file() or not old_build:
         bad("Schritt 3 hat kein Ergebnis geliefert")
         return False
+    check_customfuncs_source(variant)
 
     inputs = [patches] + list((DISASM / new_build).glob("*.ysc.full"))
     fresh = repaired.is_file() and repaired.stat().st_mtime > newest_mtime(inputs)

@@ -6,35 +6,35 @@
 
 fn0:
   ENTER 0, 3                                 ; 0x23901E  2D 00 03 00 00
-  GLOBAL_U24_LOAD 1826920                    ; 0x239023  62 68 E0 1B
+  GLOBAL_U24_LOAD 2884084                    ; 0x239023  62 F4 01 2C
   PUSH_CONST_U8 0                            ; 0x239027  25 00
   IS_BIT_SET                                 ; 0x239029  82
   INOT                                       ; 0x23902A  06
   JZ L_239032                                ; 0x23902B  56 04 00
   CALL @fn1                                  ; 0x23902E  5D 71 90 23
 L_239032:
-  GLOBAL_U24_LOAD 1826920                    ; 0x239032  62 68 E0 1B
+  GLOBAL_U24_LOAD 2884084                    ; 0x239032  62 F4 01 2C
   PUSH_CONST_U8 1                            ; 0x239036  25 01
   IS_BIT_SET                                 ; 0x239038  82
   INOT                                       ; 0x239039  06
   JZ L_239041                                ; 0x23903A  56 04 00
   CALL @fn3                                  ; 0x23903D  5D 14 91 23
 L_239041:
-  GLOBAL_U24_LOAD 1826920                    ; 0x239041  62 68 E0 1B
+  GLOBAL_U24_LOAD 2884084                    ; 0x239041  62 F4 01 2C
   PUSH_CONST_U8 2                            ; 0x239045  25 02
   IS_BIT_SET                                 ; 0x239047  82
   INOT                                       ; 0x239048  06
   JZ L_239050                                ; 0x239049  56 04 00
   CALL @fn4                                  ; 0x23904C  5D E8 91 23
 L_239050:
-  GLOBAL_U24_LOAD 1826920                    ; 0x239050  62 68 E0 1B
+  GLOBAL_U24_LOAD 2884084                    ; 0x239050  62 F4 01 2C
   PUSH_CONST_U8 3                            ; 0x239054  25 03
   IS_BIT_SET                                 ; 0x239056  82
   INOT                                       ; 0x239057  06
   JZ L_23905F                                ; 0x239058  56 04 00
   CALL @fn5                                  ; 0x23905B  5D 93 92 23
 L_23905F:
-  GLOBAL_U24_LOAD 1826920                    ; 0x23905F  62 68 E0 1B
+  GLOBAL_U24_LOAD 2884084                    ; 0x23905F  62 F4 01 2C
   PUSH_CONST_U8 4                            ; 0x239063  25 04
   IS_BIT_SET                                 ; 0x239065  82
   INOT                                       ; 0x239066  06
@@ -44,15 +44,15 @@ L_23906E:
   LEAVE 0, 0                                 ; 0x23906E  2E 00 00
 fn1:
   ENTER 0, 2                                 ; 0x239071  2D 00 02 00 00
-  GLOBAL_U24_LOAD 1826922                    ; 0x239076  62 6A E0 1B
+  GLOBAL_U24_LOAD 2884086                    ; 0x239076  62 F6 01 2C
   NATIVE 1, 1, @STREAMING::IS_MODEL_VALID    ; 0x23907A  2C 05 01 86
   INOT                                       ; 0x23907E  06
   JZ L_239085                                ; 0x23907F  56 03 00
   LEAVE 0, 0                                 ; 0x239082  2E 00 00
 L_239085:
-  GLOBAL_U24_LOAD 1826922                    ; 0x239085  62 6A E0 1B
-  GLOBAL_U24 1826923                         ; 0x239089  61 6B E0 1B
-  GLOBAL_U24 1826926                         ; 0x23908D  61 6E E0 1B
+  GLOBAL_U24_LOAD 2884086                    ; 0x239085  62 F6 01 2C
+  GLOBAL_U24 2884087                         ; 0x239089  61 F7 01 2C
+  GLOBAL_U24 2884090                         ; 0x23908D  61 FA 01 2C
   NATIVE 3, 0, @MISC::GET_MODEL_DIMENSIONS   ; 0x239091  2C 0C 02 1F
   LEAVE 0, 0                                 ; 0x239095  2E 00 00
 fn2:
@@ -310,7 +310,7 @@ L_2392B6:
   STATIC_U16 8684                            ; 0x2392B6  4F EC 21
   IOFFSET_U8_LOAD 12                         ; 0x2392B9  41 0C
   NATIVE 1, 1, @ENTITY::GET_ENTITY_MODEL     ; 0x2392BB  2C 05 04 90
-  GLOBAL_U24_STORE 1826921                   ; 0x2392BF  63 69 E0 1B
+  GLOBAL_U24_STORE 2884085                   ; 0x2392BF  63 F5 01 2C
   LEAVE 0, 0                                 ; 0x2392C3  2E 00 00
 fn6:
   ENTER 0, 2                                 ; 0x2392C6  2D 00 02 00 00

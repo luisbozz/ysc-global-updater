@@ -34,6 +34,8 @@ python3 update_xenvious.py --new 1.74-4012 --dry-run            # report only
  2  Migrate offsets       tools/run_pipeline.py
  3  Check/repair patterns scrpatches/update_patches.py
  4  Repair payloads       scrpatches/repair_scrpatches.py
+                          (+ build_customfuncs.py --check: do the readable
+                             .ysa sources still describe what we ship?)
  5  Deploy                Xenvious/OfflineData/<variant>/{offsets.ini,scrpatches.json}
  6  Rebuild               reminder only — OfflineData is compiled into the .exe
 ```

@@ -41,7 +41,16 @@ L_239C51:
   ...
 ```
 
-Generated (and round-trip verified) sources live in `customfuncs/src/*.ysa`.
+Sources live in `customfuncs/src/*.ysa` and the loop between them and the
+shipped bytes runs both ways:
+
+```
+customfuncs/src/*.ysa  --build_customfuncs.py-->  data/scrpatches.json
+                       <--gen_customfuncs_src.py--
+```
+
+Edit the source, build, deploy. `build_customfuncs.py --check` fails when the two
+disagree, so the readable version cannot quietly stop being true.
 
 ## Usage
 
@@ -49,8 +58,16 @@ Generated (and round-trip verified) sources live in `customfuncs/src/*.ysa`.
 # from scrpatches/
 python3 -m unittest discover -s scrasm/tests -p 'test_*.py'   # run all tests
 python3 gen_customfuncs_src.py     # bytecode -> customfuncs/src/*.ysa (verified)
+python3 build_customfuncs.py       # customfuncs/src/*.ysa -> report what differs
+python3 build_customfuncs.py --check   # exit 1 on drift (runs in update_xenvious)
+python3 build_customfuncs.py --write   # apply the sources to data/scrpatches.json
 python3 repair_scrpatches.py       # migrate customfuncs to the new version -> reports/
 ```
+
+`build_customfuncs.py` resolves the injection base from the target build's script
+(the same unique anchor `repair_scrpatches.py` uses) and assembles against that
+build's native table, so `@NS::NAME` stays symbolic in the source. Without
+`--write` it touches nothing.
 
 `repair_scrpatches.py` writes `reports/scrpatches.repaired.json` (the patch set
 with customfuncs updated for the new build) and `reports/customfuncs_repair.txt`
