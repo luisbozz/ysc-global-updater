@@ -36,10 +36,19 @@ from .disasm import disassemble
 STRUCT_OPS = {
     "IOFFSET_S16": 2,
     "IOFFSET_U8": 1,
+    "IOFFSET_S16_LOAD": 2,
+    "IOFFSET_U8_LOAD": 1,
     "ARRAY_U16": 2,
     "ARRAY_U8": 1,
+    "ARRAY_U16_LOAD": 2,
+    "ARRAY_U8_LOAD": 1,
     "PUSH_CONST_U24": 3,
 }
+
+# A script's own statics are numbered per script, so the same number means
+# different things in fm_lts_creator and fm_race_creator. They get their own
+# table, keyed by script, and are never looked up in the shared one.
+SCRIPT_LOCAL_OPS = {"STATIC_U16": 2}
 
 # (op, old) -> new, per build pair.
 #
@@ -73,6 +82,25 @@ OFFSETS = {
         ("IOFFSET_U8", 19): 19,
         ("ARRAY_U8", 36): 36,
         ("ARRAY_U8", 3): 3,
+        ("IOFFSET_U8_LOAD", 12): 13,
+        ("IOFFSET_U8_LOAD", 23): 23,
+        ("ARRAY_U8_LOAD", 1): 1,
+    },
+}
+
+# (old build, new build) -> script -> {old static -> new static}
+#
+# Measured the same way, per script, because statics are script-local. Each was
+# settled by its field profile: the offsets loaded off that static, with their
+# counts, form a shape that survives the move. fm_race_creator's 50517 had two
+# candidates by frequency alone -- {26:2, 1:67, 2:2, 24:14, 12:12, 25:12, 32:2}
+# against 51129's {27:2, 1:67, 3:2, 25:14, 13:12, 26:12, 33:2} settled it, while
+# the other candidate's profile was {239:13}.
+STATICS = {
+    ("1.71-3586", "1.73-3889"): {
+        "fm_lts_creator": {8684: 8883},
+        "fm_capture_creator": {8321: 8520},
+        "fm_race_creator": {50517: 51129},
     },
 }
 
@@ -92,7 +120,7 @@ def used(payload: bytes) -> dict:
     """Every struct immediate in a payload, and how often it appears."""
     out: dict = {}
     for ins in disassemble(payload, base=0):
-        if ins.name in STRUCT_OPS:
+        if ins.name in STRUCT_OPS or ins.name in SCRIPT_LOCAL_OPS:
             key = (ins.name, int.from_bytes(ins.operands, "little"))
             out[key] = out.get(key, 0) + 1
     return out
@@ -113,7 +141,7 @@ def verify(mapping: dict, old_code: bytes, new_code: bytes) -> list:
     """
     problems = []
     for (op, old_val), new_val in sorted(mapping.items()):
-        width = STRUCT_OPS[op]
+        width = STRUCT_OPS.get(op) or SCRIPT_LOCAL_OPS[op]
         o = re.escape(old_val.to_bytes(width, "little"))
         n = re.escape(new_val.to_bytes(width, "little"))
         in_old = re.search(o, old_code) is not None
@@ -126,11 +154,20 @@ def verify(mapping: dict, old_code: bytes, new_code: bytes) -> list:
 
 
 def migrate(payload: bytes, old_build: str, new_build: str,
-            old_code: bytes | None = None, new_code: bytes | None = None) -> Result:
+            old_code: bytes | None = None, new_code: bytes | None = None,
+            script: str | None = None) -> Result:
     """Work out the new value of every struct immediate a payload uses."""
     known = table(old_build, new_build)
+    statics = STATICS.get((old_build, new_build), {}).get(script or "", {})
     result = Result()
     for key in used(payload):
+        op, old_val = key
+        if op in SCRIPT_LOCAL_OPS:
+            if old_val in statics:
+                result.mapped[key] = statics[old_val]
+            else:
+                result.missing.append(key)
+            continue
         if key in known:
             result.mapped[key] = known[key]
         else:
@@ -145,12 +182,12 @@ def apply(payload: bytes, mapped: dict) -> bytes:
     """Rewrite a payload's struct offsets in place. Length never changes."""
     out = bytearray(payload)
     for ins in disassemble(payload, base=0):
-        if ins.name not in STRUCT_OPS:
+        if ins.name not in STRUCT_OPS and ins.name not in SCRIPT_LOCAL_OPS:
             continue
         old_val = int.from_bytes(ins.operands, "little")
         new_val = mapped.get((ins.name, old_val))
         if new_val is None or new_val == old_val:
             continue
-        width = STRUCT_OPS[ins.name]
+        width = STRUCT_OPS.get(ins.name) or SCRIPT_LOCAL_OPS[ins.name]
         out[ins.offset + 1:ins.offset + 1 + width] = new_val.to_bytes(width, "little")
     return bytes(out)

@@ -216,7 +216,8 @@ class ScriptContext:
         """
         old_build, new_build = builds
         res = structoffsets.migrate(payload, old_build, new_build,
-                                    self.old_full.code, self.new_full.code)
+                                    self.old_full.code, self.new_full.code,
+                                    script=rep.script)
         rep.offsets_missing.extend(res.missing)
         rep.offsets_missing.extend((op, val) for op, val, _ in res.unverified)
         for (op, old_val), new_val in sorted(res.mapped.items()):
