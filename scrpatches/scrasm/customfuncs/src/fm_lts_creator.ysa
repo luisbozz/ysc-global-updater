@@ -9,35 +9,35 @@ fn0:
   GLOBAL_U24_LOAD 2884084                    ; 0x239023  62 F4 01 2C
   PUSH_CONST_U8 0                            ; 0x239027  25 00
   IS_BIT_SET                                 ; 0x239029  82
-  INOT                                       ; 0x23902A  06
+  NOP                                       ; 0x23902A  00
   JZ L_239032                                ; 0x23902B  56 04 00
   CALL @fn1                                  ; 0x23902E  5D 71 90 23
 L_239032:
   GLOBAL_U24_LOAD 2884084                    ; 0x239032  62 F4 01 2C
   PUSH_CONST_U8 1                            ; 0x239036  25 01
   IS_BIT_SET                                 ; 0x239038  82
-  INOT                                       ; 0x239039  06
+  NOP                                       ; 0x239039  00
   JZ L_239041                                ; 0x23903A  56 04 00
   CALL @fn3                                  ; 0x23903D  5D 14 91 23
 L_239041:
   GLOBAL_U24_LOAD 2884084                    ; 0x239041  62 F4 01 2C
   PUSH_CONST_U8 2                            ; 0x239045  25 02
   IS_BIT_SET                                 ; 0x239047  82
-  INOT                                       ; 0x239048  06
+  NOP                                       ; 0x239048  00
   JZ L_239050                                ; 0x239049  56 04 00
   CALL @fn4                                  ; 0x23904C  5D E8 91 23
 L_239050:
   GLOBAL_U24_LOAD 2884084                    ; 0x239050  62 F4 01 2C
   PUSH_CONST_U8 3                            ; 0x239054  25 03
   IS_BIT_SET                                 ; 0x239056  82
-  INOT                                       ; 0x239057  06
+  NOP                                       ; 0x239057  00
   JZ L_23905F                                ; 0x239058  56 04 00
   CALL @fn5                                  ; 0x23905B  5D 93 92 23
 L_23905F:
   GLOBAL_U24_LOAD 2884084                    ; 0x23905F  62 F4 01 2C
   PUSH_CONST_U8 4                            ; 0x239063  25 04
   IS_BIT_SET                                 ; 0x239065  82
-  INOT                                       ; 0x239066  06
+  NOP                                       ; 0x239066  00
   JZ L_23906E                                ; 0x239067  56 04 00
   CALL @fn6                                  ; 0x23906A  5D C6 92 23
 L_23906E:

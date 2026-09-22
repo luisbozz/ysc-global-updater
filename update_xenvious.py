@@ -49,7 +49,7 @@ import versions  # noqa: E402
 import doctor  # noqa: E402
 from check_patches import DISASM, PATCHES, check, is_healthy  # noqa: E402
 from doctor import ARROW, BAD_MARK, OK_MARK, c, status_colour  # noqa: E402
-from tools.deploy_offsets import merge as merge_offsets  # noqa: E402
+from tools.deploy_offsets import merge as merge_offsets, apply_strides  # noqa: E402
 from versions import ENHANCED, LEGACY  # noqa: E402
 
 SCRIPTS = ROOT / "scripts"
@@ -561,6 +561,12 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
         source_ini.read_text(encoding="utf-8"),
         target_ini.read_text(encoding="utf-8", errors="surrogateescape"))
 
+    # A ``*_next`` is an array stride, not a constant, but it is written as a
+    # bare integer so nothing upstream rewrites it. Left behind it means element
+    # 0 reads correctly and every later one lands in the wrong place. The
+    # migrated value is in the sibling paths; copy it across.
+    merged_ini, strides_fixed, strides_open = apply_strides(merged_ini)
+
     ini_removed, _ = diff_lines(
         target_ini.read_text(encoding="utf-8", errors="surrogateescape"), merged_ini)
     json_removed, _ = diff_lines(target_json.read_text(encoding="utf-8"), new_json)
@@ -572,6 +578,14 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
     print(f"  {c(f'{variant}/scrpatches.json', 'bold')}  {len(json.loads(new_json))} Patches, "
           f"{counts.get('DISABLED', 0)} davon enabled=false "
           f"({json_removed} Zeilen Diff)")
+    if strides_fixed:
+        ok(f"{len(strides_fixed)} Array-Stride(s) nachgezogen:")
+        for name, was, now in strides_fixed:
+            note(f"{name}: {was} -> {now}")
+    if strides_open:
+        note(f"{len(strides_open)} *_next ohne Geschwister-Pfad -- von Hand pruefen:")
+        for name in strides_open:
+            note(f"  {name}")
     if unmapped:
         bad(f"{len(unmapped)} migrierte(r) Offset(s) ohne Gegenstueck im Ziel:")
         for name in unmapped:

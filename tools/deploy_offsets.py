@@ -23,6 +23,7 @@ Default output goes to ``reports/deploy/<target-filename>`` for review.
 from __future__ import annotations
 
 import argparse
+import collections
 import pathlib
 import re
 import shutil
@@ -71,6 +72,85 @@ def parse_offset_map(text: str) -> dict[str, str]:
         if m:
             out[m.group(1)] = m.group(2)
     return out
+
+
+# ---- array strides ---------------------------------------------------------
+#
+# ``OFFSET_props_next = 163`` is a plain integer, so the migrator skips it (it
+# only rewrites ``Global_...`` paths) and the merge below files it under
+# "static constant" and leaves it. It is not constant: it is the stride between
+# two elements of the props array, and it moves with every build. Leaving it
+# behind means element 0 reads correctly and every later one lands in the wrong
+# place -- "only the first prop loads", and the same for actors and the rest.
+#
+# The migrated value is already in the file, in the sibling paths: the comment
+# in ``OFFSET_props_loc = "Global_5242880.f_1[i /*170*/]"`` is that same stride,
+# rewritten by the migration because that entry *is* a path. So it is copied
+# from there rather than derived a second time.
+#
+# Checked against a hand-corrected offsets.ini: 18 of 27 entries resolve and all
+# 18 agree with the hand-corrected value. The other 9 have no sibling paths and
+# are reported rather than guessed.
+
+_NEXT_NAME = re.compile(r"^OFFSET_\w+?_next$", re.IGNORECASE)
+_STRIDE = re.compile(r"\[[ij]\s*/\*(\d+)\*/\]")
+
+
+def family_strides(entries: dict) -> dict:
+    """``OFFSET_<family>`` -> the stride its paths agree on, where they do.
+
+    The innermost stride is the one that counts: ``pa`` walks
+    ``[i /*26988*/] ... [j /*36*/]`` and its NEXT is 36, the inner step. A
+    family needs at least two paths and a clear winner, else it is left alone.
+    """
+    per_family: dict = {}
+    for name, value in entries.items():
+        strides = _STRIDE.findall(value)
+        if not strides:
+            continue
+        family = name.rsplit("_", 1)[0]
+        while family.count("_") >= 1:
+            per_family.setdefault(family, collections.Counter())[int(strides[-1])] += 1
+            if family.count("_") == 1:
+                break
+            family = family.rsplit("_", 1)[0]
+
+    out = {}
+    for family, counts in per_family.items():
+        if sum(counts.values()) < 2:
+            continue
+        ranked = counts.most_common()
+        if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+            continue
+        out[family] = ranked[0][0]
+    return out
+
+
+def apply_strides(text: str) -> tuple:
+    """Rewrite every ``*_next`` its family's paths disagree with.
+
+    Returns ``(text, changed, unresolved)``.
+    """
+    entries = dict(re.findall(r"^(OFFSET_\w+)\s*=\s*(.+?)\s*$", text, re.M))
+    strides = family_strides(entries)
+    changed, unresolved = [], []
+
+    def fix(line: str) -> str:
+        m = re.match(r'^(OFFSET_\w+)(\s*=\s*)"?(\d+)"?(\s*)$', line)
+        if not m or not _NEXT_NAME.match(m.group(1)):
+            return line
+        name, sep, value, tail = m.groups()
+        want = strides.get(name.rsplit("_", 1)[0])
+        if want is None:
+            unresolved.append(name)
+            return line
+        if str(want) == value:
+            return line
+        changed.append((name, value, want))
+        body = f'"{want}"' if '"' in line else str(want)
+        return f"{name}{sep}{body}{tail}"
+
+    return "\n".join(fix(l) for l in text.split("\n")), changed, unresolved
 
 
 def merge(migrated_text: str, target_text: str) -> tuple[str, dict, list[str]]:

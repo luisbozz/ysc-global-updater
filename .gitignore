@@ -12,3 +12,7 @@ scrpatches/decompiler/
 *.json.bak
 
 # Extracted game dumps live under scrpatches/disasm/, already ignored.
+
+# OpenIV exports: hundreds of MB of RSC7 containers, and only an input
+# to tools/decompile_ysc.py -- the decompiled .c under scripts/ is what we keep.
+enhanced-scripts/

@@ -420,37 +420,77 @@ anchor rather than copying the old value forward.
 
 ## Appendix — decompile the scripts yourself
 
-Only needed when
-[calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts) has not
-published your build yet. Requires **OpenIV** ([openiv.com](https://openiv.com/))
-and a GTA V script decompiler.
+Needed when [calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts)
+has not published your build yet, and for Enhanced, which they do not publish at
+all.
 
-### Export the scripts with OpenIV
+**The decompiler settings matter more than anything else here.** The migration
+works by comparing the old build's decompiled source against the new one. If the
+two were produced with different settings they differ everywhere for no real
+reason and the migration's output is worthless. So: always decompile with
+calamity-inc's defaults, which is what `tools/decompile_ysc.py` enforces.
 
-1. Start OpenIV and open your GTA V install.
-2. Go to `update` → `update.rpf` → `x64` → `levels` → `gta5` → `script` →
-   `script.rpf`. On newer game versions the scripts live in `update2.rpf`
-   instead — if `update.rpf` has no `script.rpf` or looks empty, use that one.
-3. Select all files (`Ctrl+A`), then right-click → Extract… (`Ctrl+E`).
-   Exporting everything is easiest; the updater picks what it needs.
+### 1. Export the scripts with OpenIV
+
+1. Start OpenIV, open your GTA V install.
+2. `update` → `update.rpf` → `x64` → `levels` → `gta5` → `script` → `script.rpf`.
+   On newer builds the scripts live in `update2.rpf` — if `update.rpf` has no
+   `script.rpf` or looks empty, use that one.
+3. Select all (`Ctrl+A`), right-click → Extract… (`Ctrl+E`).
    ![open script.rpf in OpenIV](docs/img/step1-openiv-scriptrpf.png)
-4. Choose an empty folder. You now have a folder full of `.ysc` files.
+4. Pick an empty folder. You get ~1150 `.ysc` files, around 400 MB.
    ![select all and Extract](docs/img/step1-openiv-export.png)
 
-### Decompile `.ysc` → `.c`
+These are RSC7 resource containers, not raw bytecode — the decompiler unpacks
+them itself, so nothing else is needed.
 
-1. Get a GTA V script decompiler (e.g. a Sysenv / `ysc` build).
-2. Point it at the native table for the build you exported.
-3. Decompile the whole folder. You get one `.c` per script
-   (`fm_capture_creator.c`, `fmmc_launcher.c`, …).
+### 2. Build the decompiler, once
 
-Then drop the `.c` files into the versioned store, labelled the way calamity-inc
-does:
+[calamity-inc/GTA-V-Script-Decompiler](https://github.com/calamity-inc/GTA-V-Script-Decompiler)
+— the same one the published corpus is built with. Visual Studio, `Release`,
+x64. You end up with a `Decompiler.exe`.
+
+### 3. Decompile
 
 ```bash
-cp /path/to/dump_new/*.c scripts/1.73-3889/
+python3 tools/decompile_ysc.py --build enhanced-1.73-1200 \
+    --src enhanced-scripts/raw \
+    --decompiler /mnt/c/tools/Decompiler.exe
 ```
 
-> The scrpatches toolchain also needs the decrypted `.ysc.full` dumps in
-> `scrpatches/disasm/<build>/`. OpenIV only gives raw `.ysc`, so use
-> `fetch_update.sh` for those — self-decrypting is out of scope here.
+Writes into `scripts/<build>/`. By default it does only the eight scripts the
+toolchain reads — the five creators, `fmmc_launcher`, `public_mission_creator`
+and `tuneables_processing`. `--all` does the full corpus, which takes hours and
+nothing here uses.
+
+It rewrites `config.ini` next to the decompiler before every run, backing up
+anything that differed. That file is the *only* way to configure this
+decompiler — there are no command line options — so a leftover `config.ini` from
+a GUI session silently changes the output dialect. The pinned values:
+
+| | | |
+|---|---|---|
+| `IntStyle` | `int` | `Show_Func_Pointer` | `False` |
+| `Show_Array_Size` | `True` | `Use_MultiThreading` | `False` |
+| `Reverse_Hashes` | `True` | `Include_Function_Position` | `False` |
+| `Declare_Variables` | `True` | `Uppercase_Natives` | `False` |
+| `Shift_Variables` | `True` | `Hex_Index` | `False` |
+| `Show_Nat_Namespace` | `True` | `Line_Numbers` | `True` |
+
+### 4. The `.ysc.full` dumps
+
+The scrpatch half of the toolchain needs `*.ysc.full` in
+`scrpatches/disasm/<build>/` — a script as it sits in memory. `fetch_update.sh`
+downloads those for Legacy. For Enhanced, or a build nobody has published, pull
+them straight out of an installed game:
+
+```bash
+python3 tools/extract_ysc.py --variant enhanced --build 1.73-1200 \
+    --game 'E:/Grand Theft Auto V Enhanced'
+```
+
+### 5. Then run the update as usual
+
+```bash
+python3 update_xenvious.py --new enhanced-1.73-1200 --variant enhanced
+```
