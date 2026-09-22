@@ -61,6 +61,8 @@ python3 gen_customfuncs_src.py     # bytecode -> customfuncs/src/*.ysa (verified
 python3 build_customfuncs.py       # customfuncs/src/*.ysa -> report what differs
 python3 build_customfuncs.py --check   # exit 1 on drift (runs in update_xenvious)
 python3 build_customfuncs.py --write   # apply the sources to data/scrpatches.json
+python3 build_customfuncs.py --check --target ../../Xenvious/Xenvious/OfflineData/legacy/scrpatches.json
+                                    # check a DEPLOYED copy against the sources, not just data/
 python3 repair_scrpatches.py       # migrate customfuncs to the new version -> reports/
 ```
 
@@ -68,6 +70,18 @@ python3 repair_scrpatches.py       # migrate customfuncs to the new version -> r
 (the same unique anchor `repair_scrpatches.py` uses) and assembles against that
 build's native table, so `@NS::NAME` stays symbolic in the source. Without
 `--write` it touches nothing.
+
+`--target` matters because `data/scrpatches.json` matching the sources does not
+mean the deployed copy does. It once didn't: a same-build global rebase was
+applied straight to `Xenvious/OfflineData/legacy/scrpatches.json`, fixed the
+`GLOBAL_U24` operands, and left the payload's internal `CALL` targets pointing
+tens of KB into unrelated code -- correct globals, corrupted control flow, and
+a check against `data/` alone had no way to see it because `data/` was never
+touched. `update_xenvious.py` now runs `--check --target` against the deploy
+output as the last thing step 5 does, so that gap can't reopen silently. Any
+edit made straight to a deployed `scrpatches.json` -- by hand, or with a
+narrower one-off script -- should be followed by the same command before it's
+trusted.
 
 `repair_scrpatches.py` writes `reports/scrpatches.repaired.json` (the patch set
 with customfuncs updated for the new build) and `reports/customfuncs_repair.txt`

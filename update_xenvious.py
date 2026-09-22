@@ -397,28 +397,44 @@ def step_patterns(variant: str, old_build, new_build: str, bootstrap: bool,
     return broken
 
 
-def check_customfuncs_source(variant: str) -> None:
-    """Warn when the .ysa sources no longer describe the payloads we ship.
+def check_customfuncs_source(variant: str, target: pathlib.Path | None = None) -> None:
+    """Warn when a scrpatches.json no longer matches the customfuncs sources.
 
-    The payloads are what the game gets; the sources are what a human reads and
-    edits. If they drift, the readable version silently stops being true -- the
-    same class of mistake that left the scratch globals pointing outside their
-    block. Only legacy carries sources today, so this is a warning, not a gate.
+    Checks data/scrpatches.json by default. Pass ``target`` to point this at a
+    *deployed* copy instead -- catch the case a check against data/ cannot see:
+    the deployed file was edited directly (by hand, or by a narrower one-off
+    script) and now disagrees with the source even though data/scrpatches.json
+    itself is untouched. That happened once already: a same-build global
+    rebase was applied straight to Xenvious/OfflineData/legacy/scrpatches.json,
+    fixed the GLOBAL_U24 operands, and silently left the payload's internal
+    CALL targets pointing tens of KB into unrelated code -- a check against
+    data/ alone had nothing to compare that against, because data/ was never
+    touched. Only legacy carries sources today, so this is a warning, not a
+    gate; on a target mismatch it is a loud one.
     """
     builder = ROOT / "scrpatches" / "build_customfuncs.py"
     if variant != LEGACY or not builder.is_file():
         return
-    res = subprocess.run([sys.executable, str(builder), "--check"],
-                         cwd=str(ROOT / "scrpatches"), capture_output=True, text=True)
+    checking_deploy = target is not None
+    cmd = [sys.executable, str(builder), "--check"]
+    if checking_deploy:
+        cmd += ["--target", str(target)]
+    res = subprocess.run(cmd, cwd=str(ROOT / "scrpatches"), capture_output=True, text=True)
+    label = "dem deployten scrpatches.json" if checking_deploy else "data/scrpatches.json"
     if res.returncode == 0:
-        ok("customfuncs-Quellen stimmen mit den Payloads ueberein")
+        ok(f"customfuncs-Quellen stimmen mit {label} ueberein")
         return
-    bad("customfuncs-Quellen weichen von den Payloads ab")
+    bad(f"customfuncs-Quellen weichen von {label} ab")
     for line in res.stdout.splitlines():
         if line.startswith("DIFF") or line.startswith("!!"):
             note(line)
-    note("scrasm/customfuncs/src/*.ysa beschreibt nicht mehr, was ausgeliefert wird.")
-    note("Entweder build_customfuncs.py --write, oder gen_customfuncs_src.py.")
+    if checking_deploy:
+        note(f"{target} wurde ausserhalb dieser Pipeline geaendert und weicht jetzt")
+        note("von den Quellen ab -- das ist der Stand, den die App tatsaechlich laedt.")
+        note(f"Reparieren:  python3 scrpatches/build_customfuncs.py --write --target {target}")
+    else:
+        note("scrasm/customfuncs/src/*.ysa beschreibt nicht mehr, was ausgeliefert wird.")
+        note("Entweder build_customfuncs.py --write, oder gen_customfuncs_src.py.")
 
 
 def step_payloads(variant: str, old_build, new_build: str,
@@ -552,6 +568,7 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
     target_ini.write_text(merged_ini, encoding="utf-8", errors="surrogateescape")
     target_json.write_text(new_json, encoding="utf-8")
     ok(f"geschrieben: {variant}/{target_ini.name}, {variant}/{target_json.name}")
+    check_customfuncs_source(variant, target=target_json)
     return True
 
 

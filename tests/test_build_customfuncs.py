@@ -130,6 +130,44 @@ class BuildCustomfuncsTest(unittest.TestCase):
             self.assertEqual(len(changed), 1,
                              f"expected 1 changed line, got {len(changed)}")
 
+    def test_target_checks_a_deployed_copy_independently_of_data(self):
+        """--target lets a deployed scrpatches.json be checked on its own.
+
+        This is the gap that let a payload ship with corrupted internal CALL
+        targets: data/scrpatches.json was correct, so a --check with no
+        --target passed, while the deployed copy -- patched directly, out of
+        band -- had already drifted. --target closes that gap by checking any
+        file, not just data/.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            work = _sandbox(Path(tmp))
+            deployed = work / "deployed_scrpatches.json"
+            shutil.copy(work / "data" / "scrpatches.json", deployed)
+
+            # a deployed copy still matching its source checks out ...
+            r = _run("--check", "--target", str(deployed), script=work / BUILD.name)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+            # ... and checking it must not be the same as checking data/: corrupt
+            # only the deployed copy's injected bytes, data/ stays untouched.
+            patches = json.loads(deployed.read_text())
+            entry = next(p for p in patches
+                         if p.get("category") == "customfuncs"
+                         and p["script_name"] == "fm_lts_creator"
+                         and p["bytes_to_patch"].replace(" ", "").upper().startswith("2D"))
+            corrupted = bytearray(bytes.fromhex(entry["bytes_to_patch"].replace(" ", "")))
+            corrupted[17] = 0xFF ^ corrupted[17]   # flip a byte inside an internal CALL
+            entry["bytes_to_patch"] = corrupted.hex(" ").upper() + " "
+            deployed.write_text(json.dumps(patches, indent=4) + "\n")
+
+            r_deployed = _run("--check", "--target", str(deployed), script=work / BUILD.name)
+            self.assertEqual(r_deployed.returncode, 1, r_deployed.stdout + r_deployed.stderr)
+            self.assertIn("DIFF fm_lts_creator", r_deployed.stdout)
+
+            r_data = _run("--check", script=work / BUILD.name)
+            self.assertEqual(r_data.returncode, 0,
+                             "corrupting the deployed copy must not affect data/'s own check")
+
     def test_every_injected_payload_has_a_source(self):
         """No injected customfuncs payload may exist without readable source."""
         patches = json.loads(DATA.read_text())

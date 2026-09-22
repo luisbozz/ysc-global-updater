@@ -11,10 +11,23 @@ replaces the ``bytes_to_patch`` of the matching injected customfuncs entry.
 Without ``--write`` nothing is modified; the run only reports what would change,
 which doubles as a drift check between the sources and the shipped payloads.
 
+``--target`` points this at any scrpatches.json, not just the one under data/.
+Use it on a deployed copy (Xenvious/OfflineData/<variant>/scrpatches.json) to
+catch the case a build_customfuncs.py run against data/ cannot see: someone
+edited the deployed file directly -- by hand, or with a narrower one-off script
+-- and it now says something different from what the source describes, even
+though data/scrpatches.json itself still matches. That happened once already:
+a same-build global rebase was applied straight to the deployed file, fixed
+the GLOBAL_U24 operands, and left its internal CALL targets pointing at
+whatever the payload used to jump to -- tens of KB into unrelated code that a
+check against data/ alone had no way to see, because data/ was never touched.
+
 Usage:
-  python3 build_customfuncs.py              # report only
-  python3 build_customfuncs.py --check      # report, exit 1 on any drift
-  python3 build_customfuncs.py --write      # update data/scrpatches.json
+  python3 build_customfuncs.py                           # report only
+  python3 build_customfuncs.py --check                   # exit 1 on any drift
+  python3 build_customfuncs.py --write                   # update data/scrpatches.json
+  python3 build_customfuncs.py --check \
+      --target ../Xenvious/Xenvious/OfflineData/legacy/scrpatches.json
 """
 
 from __future__ import annotations
@@ -66,18 +79,25 @@ def main() -> int:
     ap.add_argument("--build", help="Build to assemble against "
                                     "(default: oldest folder in disasm/).")
     ap.add_argument("--write", action="store_true",
-                    help="Write the assembled payloads to data/scrpatches.json.")
+                    help="Write the assembled payloads back to --target.")
     ap.add_argument("--check", action="store_true",
                     help="Exit non-zero if a source and its payload differ.")
+    ap.add_argument("--target", type=Path, default=DATA,
+                    help="scrpatches.json to check/update (default: data/scrpatches.json). "
+                         "Point this at a deployed OfflineData copy to verify what actually "
+                         "ships, not just the source-of-truth file.")
     args = ap.parse_args()
+    target = args.target
 
     builds = versions.list_versions(DISASM)
     if not builds:
         raise SystemExit("no build folders in disasm/ -- fetch one first")
     build = versions.resolve(DISASM, args.build) if args.build else builds[0]
     print(f"[versions] target build: {build}")
+    if target != DATA:
+        print(f"[target] {target}")
 
-    patches = json.loads(DATA.read_text())
+    patches = json.loads(target.read_text())
     by_script: dict[str, list[int]] = {}
     for i, p in enumerate(patches):
         if is_injection(p):
@@ -129,8 +149,8 @@ def main() -> int:
             changed.append(script)
 
     if args.write and changed:
-        DATA.write_text(json.dumps(patches, indent=4) + "\n")
-        print(f"\nwrote {DATA}  ({len(changed)} payload(s) updated)")
+        target.write_text(json.dumps(patches, indent=4) + "\n")
+        print(f"\nwrote {target}  ({len(changed)} payload(s) updated)")
     elif drift and not args.write:
         print(f"\n{len(drift)} payload(s) differ from their source "
               f"-- re-run with --write to apply")
