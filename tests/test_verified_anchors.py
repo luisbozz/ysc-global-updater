@@ -269,11 +269,27 @@ class CrossVariantAnchorTest(unittest.TestCase):
         self.assertEqual(resolve("OFFSET_hide_creator_menu", REAL_NEW, REAL_ENHANCED),
                          "Global_24586.f_9243")
 
-    def test_check_creator_declines_rather_than_guesses(self):
-        # Its anchor is a block of local declarations, and the newer decompiler
-        # names locals differently. Returning None sends the offset to REVIEW,
-        # which is the correct outcome: there is nothing here to verify against.
-        self.assertIsNone(resolve("OFFSET_check_creator", REAL_NEW, REAL_ENHANCED))
+    def test_check_creator_resolves_on_both_dialects(self):
+        # This anchor used to spell out the local declarations around the write
+        # -- "bool bVar0; int iVar1; struct<5> Var3;" -- and the Enhanced corpus
+        # is decompiled with names instead: "BOOL flag; int num; Vector3 vector".
+        # So it matched nothing there, the offset kept Legacy's value, and the
+        # report showed no change at all. That is worse than a failure, because
+        # check_creator gates whether the editor loads anything: with a stale
+        # value every field in the app stays empty and nothing says why.
+        #
+        # It now anchors on the five struct-field constants, which belong to the
+        # game's data rather than the decompiler's vocabulary.
+        self.assertEqual(resolve("OFFSET_check_creator", REAL_NEW, REAL_ENHANCED),
+                         "Global_1926457")
+
+    def test_check_creator_gives_each_variant_its_own_answer(self):
+        # The whole point: the two builds hold this flag in different globals,
+        # and an anchor that cannot tell them apart is how the stale value got
+        # shipped in the first place.
+        enhanced = resolve("OFFSET_check_creator", REAL_NEW, REAL_ENHANCED)
+        legacy = resolve("OFFSET_check_creator", REAL_OLD, REAL_NEW)
+        self.assertNotEqual(enhanced, legacy)
 
     def test_array_bases_did_not_move_between_the_variants(self):
         # published_*, saved_* and gbtpi/gbtpp resolve to the same base in both

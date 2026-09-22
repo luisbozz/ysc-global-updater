@@ -42,7 +42,12 @@ PROCESS = {versions.LEGACY: "GTA5", versions.ENHANCED: "GTA5_Enhanced"}
 
 # `48 8D 15 <rel> 4C 8B C0 E8 ...` -- the instruction that loads the global
 # table. Same pattern the app scans for; the table address is rip-relative at +3.
-GLOBAL_TABLE_AOB = "48 8D 15 ? ? ? ? 4C 8B C0 E8 ? ? ? ? 48 85 FF 48 89 1D"
+# The two games resolve their global table from different instructions, so the
+# pattern is per variant -- the Legacy one simply does not occur in Enhanced.
+GLOBAL_TABLE_AOB = {
+    versions.LEGACY: "48 8D 15 ? ? ? ? 4C 8B C0 E8 ? ? ? ? 48 85 FF 48 89 1D",
+    versions.ENHANCED: "48 8D 3D ? ? ? ? 31 DB 48 8D 2D ? ? ? ? 4C",
+}
 
 PS_READ = r"""
 $ErrorActionPreference = 'Stop'
@@ -152,22 +157,30 @@ def run_ps(script: str, workdir: pathlib.Path) -> str:
     return res.stdout
 
 
-def table_rva(process: str, workdir: pathlib.Path) -> int | None:
+def table_rva(process: str, workdir: pathlib.Path,
+              variant: str | None = None) -> int | None:
     """Find the global table by scanning the live module, as the app does."""
     dump = workdir / "module.bin"
     if run_ps(PS_DUMP.format(process=process, out=win_path(dump)),
               workdir).strip() != "OK":
         return None
     data = dump.read_bytes()
+    if variant is None:
+        variant = versions.ENHANCED if "Enhanced" in process else versions.LEGACY
     pattern = b"".join(b"." if t == "?" else re.escape(bytes([int(t, 16)]))
-                       for t in GLOBAL_TABLE_AOB.split())
+                       for t in GLOBAL_TABLE_AOB[variant].split())
     hits = [m.start() for m in re.finditer(pattern, data, re.DOTALL)]
     dump.unlink(missing_ok=True)
-    if len(hits) != 1:
+    if not hits:
         return None
+    # Enhanced matches this pattern twice, at two instructions that load the
+    # same table. Several sites are fine as long as they agree on the target;
+    # what would not be fine is picking one of several different answers.
     import struct
-    off = hits[0]
-    return off + 7 + struct.unpack_from("<i", data, off + 3)[0]
+    targets = {off + 7 + struct.unpack_from("<i", data, off + 3)[0] for off in hits}
+    if len(targets) != 1:
+        return None
+    return next(iter(targets))
 
 
 def global_index(value: str) -> int | None:

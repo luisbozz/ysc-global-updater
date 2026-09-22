@@ -30,13 +30,22 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
     # literal struct<5> field-constant assignments that immediately follow the
     # Global_ write (the enclosing func_N name/number is NOT stable, this body
     # shape is).
+    # Anchored on the five struct-field constants, not on the local declarations
+    # above them. The Enhanced corpus is decompiled with names instead of
+    # numbered locals -- "Vector3 vector" where Legacy has "struct<5> Var3",
+    # "BOOL flag" for "bool bVar0" -- so an anchor spelling those names out
+    # silently matches nothing and the offset keeps its old value. That is the
+    # worst outcome: it reads as "unchanged" rather than as a failure, and
+    # check_creator gates whether the editor loads anything at all, so a stale
+    # value leaves every field in the app empty with no error anywhere.
+    #
+    # The field constants survive the rename because they are part of the game's
+    # data, not the decompiler's vocabulary.
     "OFFSET_check_creator": (
         re.compile(
-            r"bool\s+bVar0;\s*int\s+iVar1;\s*int\s+iVar2;\s*struct<5>\s+Var3;\s*"
-            r"int\s+iVar98;\s*bool\s+bVar99;\s*int\s+iVar100;\s*"
-            r"Global_(\d+)\s*=\s*1;\s*bVar0\s*=\s*false;\s*"
-            r"Var3\.f_4\s*=\s*3;\s*Var3\.f_8\s*=\s*3;\s*Var3\.f_64\s*=\s*3;\s*"
-            r"Var3\.f_75\s*=\s*3;\s*Var3\.f_91\s*=\s*3;"
+            r"Global_(\d+)\s*=\s*1;\s*\w+\s*=\s*false;\s*"
+            r"(\w+)\.f_4\s*=\s*3;\s*\2\.f_8\s*=\s*3;\s*\2\.f_64\s*=\s*3;\s*"
+            r"\2\.f_75\s*=\s*3;\s*\2\.f_91\s*=\s*3;"
         ),
         "Global_{0}",
     ),

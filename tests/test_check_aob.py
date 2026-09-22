@@ -97,18 +97,35 @@ class ShippedIniTest(unittest.TestCase):
             encoding="utf-8", errors="replace"))) for v in ("legacy", "enhanced")]
         self.assertEqual(names[0], names[1])
 
-    def test_no_enhanced_pattern_was_copied_from_legacy(self):
-        # A Legacy pattern in the Enhanced file would scan, find nothing, and
-        # produce a pointer computed from address zero.
+    # Two patterns legitimately match both games, and both were checked against
+    # a running Enhanced process before being copied across: they describe data
+    # rather than code, so the compiler change that rewrote every instruction
+    # idiom left them alone. Every other name sharing Legacy's pattern is a
+    # copy nobody verified, and would scan Enhanced, find nothing, and produce
+    # a pointer computed from address zero.
+    SHARED_WITH_LEGACY = {"camptr", "creator_camptr"}
+
+    def test_no_unverified_pattern_was_copied_from_legacy(self):
         legacy = aob_section((SHIPPED / "legacy" / "offsets.ini").read_text(
             encoding="utf-8", errors="replace"))
         enhanced = aob_section((SHIPPED / "enhanced" / "offsets.ini").read_text(
             encoding="utf-8", errors="replace"))
         for name, pattern in enhanced.items():
-            if not pattern.strip():
+            if not pattern.strip() or name in self.SHARED_WITH_LEGACY:
                 continue
             self.assertNotEqual(pattern, legacy.get(name),
                                 f"enhanced {name} is the Legacy pattern verbatim")
+
+    def test_the_shared_patterns_are_actually_shared(self):
+        # If one of these ever stops matching Legacy, it was edited for one
+        # game and not the other, and the exemption above no longer holds.
+        legacy = aob_section((SHIPPED / "legacy" / "offsets.ini").read_text(
+            encoding="utf-8", errors="replace"))
+        enhanced = aob_section((SHIPPED / "enhanced" / "offsets.ini").read_text(
+            encoding="utf-8", errors="replace"))
+        for name in self.SHARED_WITH_LEGACY:
+            self.assertEqual(enhanced.get(name), legacy.get(name),
+                             f"{name} is exempted as shared but the two now differ")
 
 
 if __name__ == "__main__":

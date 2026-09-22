@@ -30,7 +30,18 @@ SHARED = ("props.json", "vehicles.json", "weapons.json", "actors.json")
 
 # Only two Enhanced patterns have been derived so far. The rest ship empty on
 # purpose; see GTA.HasPattern.
-ENHANCED_KNOWN_AOB = ("globalptr", "localptr")
+# The Enhanced patterns that have been derived and checked against a running
+# game. Everything else must stay empty: a Legacy pattern in this file would
+# scan, find nothing, and hand back a pointer computed from address zero.
+ENHANCED_KNOWN_AOB = (
+    "globalptr", "localptr",
+    "camptr", "creator_camptr",   # Legacy's patterns; both are data, not code
+    "scrProgramptr",              # script table, verified by reading script names
+    "versionptr",                 # resolves to the build string
+    "worldptr",                   # chain to the player's coordinates
+    "devptr",                     # matched on the joaat hashes it compares
+    "nextcp_ptr",                 # tracks the upcoming checkpoints
+)
 
 
 def csproj_text() -> str:
