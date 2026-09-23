@@ -41,6 +41,8 @@ ENHANCED_KNOWN_AOB = (
     "worldptr",                   # chain to the player's coordinates
     "devptr",                     # matched on the joaat hashes it compares
     "nextcp_ptr",                 # tracks the upcoming checkpoints
+    "img_ptr",                    # derived from the live job image (JPEG header)
+    "session_ptr",                # Social Club session struct, holds the name
 )
 
 

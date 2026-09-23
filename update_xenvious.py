@@ -50,6 +50,7 @@ import doctor  # noqa: E402
 from check_patches import DISASM, PATCHES, check, is_healthy  # noqa: E402
 from doctor import ARROW, BAD_MARK, OK_MARK, c, status_colour  # noqa: E402
 from tools.deploy_offsets import merge as merge_offsets, apply_strides  # noqa: E402
+from tools.extract_prop_lists import refresh_ini as refresh_prop_lists  # noqa: E402
 from versions import ENHANCED, LEGACY  # noqa: E402
 
 SCRIPTS = ROOT / "scripts"
@@ -581,9 +582,27 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
         return False
     new_json = repaired.read_text(encoding="utf-8")
 
-    merged_ini, stats, unmapped = merge_offsets(
+    # A migrated value that does not occur in the new build's scripts must not
+    # replace a deployed one that does (see deploy_offsets.merge).
+    corpus = "\n".join(f.read_text(encoding="utf-8", errors="replace")
+                       for f in sorted((SCRIPTS / new_build).glob("*.c")))
+    flat = re.sub(r"\[[^\]]*\]", "", corpus)
+
+    def attested(path: str) -> bool:
+        return re.sub(r"\[[^\]]*\]", "", path) in flat
+
+    merged_ini, stats, unmapped, kept = merge_offsets(
         source_ini.read_text(encoding="utf-8"),
-        target_ini.read_text(encoding="utf-8", errors="surrogateescape"))
+        target_ini.read_text(encoding="utf-8", errors="surrogateescape"),
+        attested if corpus else None)
+
+    # The [OTHER] prop model lists grow with every DLC; they come from the
+    # creator scripts, not from the migration.
+    try:
+        merged_ini, prop_rows = refresh_prop_lists(merged_ini, SCRIPTS / new_build)
+    except FileNotFoundError as e:
+        bad(f"Prop-Listen nicht aktualisiert: {e}")
+        return False
 
     # A ``*_next`` is an array stride, not a constant, but it is written as a
     # bare integer so nothing upstream rewrites it. Left behind it means element
@@ -610,6 +629,13 @@ def step_deploy(variant: str, xenvious: pathlib.Path, old_build, new_build: str,
         note(f"{len(strides_open)} *_next ohne Geschwister-Pfad -- von Hand pruefen:")
         for name in strides_open:
             note(f"  {name}")
+    grown = [(k, n) for k, _, _, n, _, _ in prop_rows if n]
+    if grown:
+        ok("Prop-Listen erweitert: " + ", ".join(f"{k} +{n}" for k, n in grown))
+    if kept:
+        note(f"{len(kept)} Offset(s) behalten -- migrierter Wert kommt im neuen Build nicht vor:")
+        for name, cur_val, new_val in kept:
+            note(f"  {name}: {cur_val} (angeboten: {new_val})")
     if unmapped:
         bad(f"{len(unmapped)} migrierte(r) Offset(s) ohne Gegenstueck im Ziel:")
         for name in unmapped:
