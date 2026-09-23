@@ -49,12 +49,12 @@ class SplitVectorTest(unittest.TestCase):
 
 class MergeTest(unittest.TestCase):
     def test_direct_match_updates_value(self) -> None:
-        merged, stats, _ = merge(MIGRATED, TARGET)
+        merged, stats, _, _kept = merge(MIGRATED, TARGET)
         self.assertIn('OFFSET_check_creator = "Global_1925981"', merged)
         self.assertEqual(stats["updated"], 1 + 6)  # check_creator + 6 split values
 
     def test_vector_split_updates_all_three(self) -> None:
-        merged, _, _ = merge(MIGRATED, TARGET)
+        merged, _, _, _kept = merge(MIGRATED, TARGET)
         self.assertIn('OFFSET_actor_locx = "Global_4980736.f_93162[i /*1277*/].f_0"', merged)
         self.assertIn('OFFSET_actor_locy = "Global_4980736.f_93162[i /*1277*/].f_1"', merged)
         self.assertIn('OFFSET_actor_locz = "Global_4980736.f_93162[i /*1277*/].f_2"', merged)
@@ -63,7 +63,7 @@ class MergeTest(unittest.TestCase):
         self.assertIn('OFFSET_actor_actvz = "Global_4980736.f_166.f_9.f_4"', merged)
 
     def test_non_offset_and_target_only_lines_preserved(self) -> None:
-        merged, stats, _ = merge(MIGRATED, TARGET)
+        merged, stats, _, _kept = merge(MIGRATED, TARGET)
         self.assertIn("[AOB]", merged)
         self.assertIn('worldptr = "48 8B 05 ? ? ? ? 45 0F C6 C0"', merged)
         self.assertIn('OFFSET_untouched = "Global_999.f_1"', merged)
@@ -72,12 +72,12 @@ class MergeTest(unittest.TestCase):
         self.assertEqual(stats["target_only_static"], 0)  # OFFSET_image doesn't match the quoted regex at all
 
     def test_migrated_only_offset_is_reported_unmapped(self) -> None:
-        _, _, unmapped = merge(MIGRATED, TARGET)
+        _, _, unmapped, _kept = merge(MIGRATED, TARGET)
         self.assertEqual(unmapped, ["OFFSET_new_thing"])
 
     def test_identical_value_counts_as_unchanged(self) -> None:
         target_same = TARGET.replace("Global_1921391", "Global_1925981")
-        merged, stats, _ = merge(MIGRATED, target_same)
+        merged, stats, _, _kept = merge(MIGRATED, target_same)
         self.assertEqual(stats["unchanged"], 1)
         self.assertIn('OFFSET_check_creator = "Global_1925981"', merged)
 
@@ -139,3 +139,38 @@ class TestDefaultTargets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AttestationGuard(unittest.TestCase):
+    """An unresolved migration must not overwrite a correct deployed value.
+
+    The whole OFFSET_SMS_* family is unresolved against the Enhanced corpus, so
+    the migration hands back the 1.71 root while the deployed file already holds
+    the right one. Without the guard the name merge writes the stale value.
+    """
+
+    MIGRATED = 'OFFSET_SMS_team = "Global_4718592.f_112261[i /*44*/]"\n'
+    TARGET = 'OFFSET_SMS_team = "Global_4718592.f_112650[i /*44*/]"\n'
+
+    @staticmethod
+    def attested(path):
+        return "f_112650" in path
+
+    def test_keeps_attested_target_value(self):
+        merged, stats, _, kept = merge(self.MIGRATED, self.TARGET, self.attested)
+        self.assertIn("f_112650", merged)
+        self.assertNotIn("f_112261", merged)
+        self.assertEqual(stats["kept_attested"], 1)
+        self.assertEqual(kept[0][0], "OFFSET_SMS_team")
+
+    def test_writes_when_new_value_is_attested(self):
+        merged, stats, _, kept = merge(self.TARGET, self.MIGRATED, self.attested)
+        self.assertIn("f_112650", merged)
+        self.assertEqual(stats["updated"], 1)
+        self.assertEqual(kept, [])
+
+    def test_no_guard_without_corpus(self):
+        merged, stats, _, kept = merge(self.MIGRATED, self.TARGET)
+        self.assertIn("f_112261", merged)
+        self.assertEqual(stats["updated"], 1)
+        self.assertEqual(kept, [])

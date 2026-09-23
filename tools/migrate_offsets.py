@@ -137,7 +137,8 @@ def _base(v: str):
     return m.group(0) if m else None
 
 
-def postprocess_families(migrated_text: str, ini_text: str, struct_families: tuple):
+def postprocess_families(migrated_text: str, ini_text: str, struct_families: tuple,
+                         attested=None):
     """Nachkorrektur cross-family-kontaminierter Offsets ueber Familien-KONSENS.
 
     Generische Keys (loc/head/veh/no) koennen einen struct-family-Offset in die
@@ -146,12 +147,40 @@ def postprocess_families(migrated_text: str, ini_text: str, struct_families: tup
     Ausreisser (gleicher OLD-Root wie die Familie, aber anderer NEW-Root) auf den
     Konsens-Root/-Stride zurueckgefuehrt (Blatt per Sibling-Interpolation), das
     ``_number`` per Familien-Root-Delta, und ``_NEXT`` auf den neuen Stride gesetzt.
+
+    ``attested(path) -> bool`` sagt, ob ein Pfad im NEUEN Korpus vorkommt. Ist es
+    gesetzt, wird eine Korrektur verworfen, sobald sie einen belegten Wert durch
+    einen unbelegten ersetzen wuerde. Das Familien-Root-Delta gilt fuer den Array-
+    Root, nicht zwangslaeufig fuer den Skalar daneben: bei cps_ war es 406 (Array),
+    der Skalar cps_number aber um 6906 verschoben -- ohne Veto schrieb (b) den
+    korrekt migrierten f_128455 auf f_121955 zurueck, einen Wert, den der Enhanced-
+    Korpus gar nicht kennt (es ist Legacys Wert).
     """
     old = {m.group(1): m.group(2) for ln in ini_text.splitlines() if (m := _VAL_ONLY_RE.match(ln))}
     new = {m.group(1): m.group(2) for ln in migrated_text.splitlines() if (m := _VAL_ONLY_RE.match(ln))}
     fixes: dict[str, str] = {}     # name -> korrigierter Wert
     next_fixes: dict[str, int] = {}  # OFFSET_..._NEXT -> neuer stride
     notes: list[tuple[str, str, str]] = []
+
+    def accept(current: str, corrected: str, fam_stride: int = None) -> bool:
+        """Verwirf eine Korrektur, die einen belegten Wert unbelegt machen wuerde.
+
+        ``fam_stride`` schuetzt vor dem Umkehrschluss: ein Wert kann belegt sein und
+        trotzdem in der FALSCHEN Struct liegen. Die Array-Elementgroesse gehoert zur
+        Struct, also zaehlt ein belegter Wert nur dann gegen die Familien-Korrektur,
+        wenn sein Stride der Familie entspricht. SMS_txt war in Enhanced auf
+        f_3838[i /*26988*/] migriert -- belegt, aber Stride 26988 statt 44, also die
+        Team-Struct und nicht die SMS-Struct.
+        """
+        if attested is None or current == corrected:
+            return True
+        if not attested(current):
+            return True
+        if fam_stride is not None:
+            cm = re.search(r"/\*(\d+)\*/", current)
+            if not cm or int(cm.group(1)) != fam_stride:
+                return True
+        return attested(corrected)
 
     for fam in struct_families:
         members = [n for n in new if n.startswith("OFFSET_" + fam)]
@@ -189,6 +218,8 @@ def postprocess_families(migrated_text: str, ini_text: str, struct_families: tup
         for n, orr, _os, oleaf, nrr, _ns, _nl in arr:
             if orr == cons_old_root and (nrr != cons_new_root):
                 corrected = f"{cons_new_root}[i /*{cons_new_stride}*/]{interp(oleaf or '')}"
+                if not accept(new[n], corrected, cons_new_stride):
+                    continue
                 fixes[n] = corrected
                 notes.append((n, new[n], corrected))
 
@@ -221,6 +252,23 @@ def postprocess_families(migrated_text: str, ini_text: str, struct_families: tup
             if int(ln_.group(1)) == winner:
                 continue
             corrected = f"{cons_new_root}[i /*{nstride}*/].f_{winner}{lo.group(2)}"
+            if not accept(new[n], corrected):
+                continue
+            fixes[n] = corrected
+            notes.append((n, new[n], corrected))
+
+        # (a3) Stride-Ausreisser: Root und Blatt stimmen, aber die Array-
+        # Elementgroesse haengt noch am ALTEN Build. Die Elementgroesse gehoert zur
+        # Struct, also kann ein Mitglied keine eigene haben. goto_locx/y/z blieben
+        # so auf /*335*/ (1.71), waehrend der Rest der goto-Familie auf /*339*/
+        # migriert war -- und Xenvious addiert JEDE Zahl im Pfad, der Stride
+        # eingeschlossen, also zeigten die drei vier Felder daneben.
+        for n, orr, _os, _ol, nrr, nstride, nleaf in arr:
+            if orr != cons_old_root or nrr != cons_new_root or n in fixes:
+                continue
+            if nstride == cons_new_stride:
+                continue
+            corrected = f"{cons_new_root}[i /*{cons_new_stride}*/]{nleaf or ''}"
             fixes[n] = corrected
             notes.append((n, new[n], corrected))
 
@@ -236,6 +284,8 @@ def postprocess_families(migrated_text: str, ini_text: str, struct_families: tup
                 # nur korrigieren, wenn der neue Wert nicht schon in der Naehe liegt
                 if mo and _root_field(nv) is not None and abs((_root_field(nv) or 0) - (int(mo.group(2)) + delta)) > 200:
                     corrected = f"{mo.group(1)}.f_{int(mo.group(2)) + delta}"
+                    if not accept(new[n], corrected):
+                        continue
                     fixes[n] = corrected
                     notes.append((n, nv, corrected))
 
@@ -871,7 +921,18 @@ def main() -> int:
 
     # Nachkorrektur: Familien-Konsens (cross-family-Ausreisser) + _NEXT-Strides.
     struct_fams_all = tuple(p for p in args.struct_families.split(",") if p)
-    migrated_text, family_notes = postprocess_families(migrated_text, ini_path.read_text(encoding="utf-8"), struct_fams_all)
+    # Belegt der NEUE Korpus einen Pfad woertlich? Dient postprocess_families als
+    # Veto gegen Korrekturen, die einen belegten Wert unbelegt machen wuerden.
+    _new_corpus = "\n".join(
+        _f.read_text(encoding="utf-8", errors="replace") for _f in sorted(new_dir.glob("*.c")))
+    _new_corpus_flat = re.sub(r"\[[^\]]*\]", "", _new_corpus)
+
+    def _attested(path: str) -> bool:
+        return re.sub(r"\[[^\]]*\]", "", path) in _new_corpus_flat
+
+    migrated_text, family_notes = postprocess_families(
+        migrated_text, ini_path.read_text(encoding="utf-8"), struct_fams_all,
+        attested=_attested)
     if family_notes:
         stats["migrated_family"] = stats.get("migrated_family", 0) + len(family_notes)
 

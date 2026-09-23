@@ -153,12 +153,27 @@ def apply_strides(text: str) -> tuple:
     return "\n".join(fix(l) for l in text.split("\n")), changed, unresolved
 
 
-def merge(migrated_text: str, target_text: str) -> tuple[str, dict, list[str]]:
-    """Merge migrated offsets into a full target ini. Returns (merged_text, stats, unmapped)."""
+def merge(migrated_text: str, target_text: str,
+          attested=None) -> tuple[str, dict, list[str], list[tuple[str, str, str]]]:
+    """Merge migrated offsets into a full target ini.
+
+    Returns ``(merged_text, stats, unmapped, kept)``.
+
+    ``attested(path) -> bool`` says whether a path occurs literally in the new
+    build's script corpus. When it is given, a replacement is **refused** if the
+    new value is not attested while the value already in the target is. An
+    offset the migration could not resolve keeps the value from 1.71, and a
+    blind name merge would then overwrite a correct, previously deployed value
+    with a stale one -- this is what happened to the whole ``OFFSET_SMS_*``
+    family, which is unresolved against the Enhanced corpus while the deployed
+    file already held the right root. Refusals are reported as ``kept``.
+    """
     migrated = parse_offset_map(migrated_text)
     split_values = {name: split_vector_xyz(val) for name, val in migrated.items() if name in VECTOR_SPLITS}
 
-    stats = {"updated": 0, "unchanged": 0, "target_only_static": 0, "target_only_global": 0}
+    stats = {"updated": 0, "unchanged": 0, "target_only_static": 0,
+             "target_only_global": 0, "kept_attested": 0}
+    kept: list[tuple[str, str, str]] = []
     seen_targets: set[str] = set()
     out_lines: list[str] = []
 
@@ -194,12 +209,18 @@ def merge(migrated_text: str, target_text: str) -> tuple[str, dict, list[str]]:
         elif new_val == cur_val:
             stats["unchanged"] += 1
             out_lines.append(line)
+        elif (attested is not None and cur_val.startswith("Global_")
+              and not attested(new_val) and attested(cur_val)):
+            stats["kept_attested"] += 1
+            kept.append((name, cur_val, new_val))
+            out_lines.append(line)
         else:
             stats["updated"] += 1
             out_lines.append(re.sub(r'"[^"]*"', f'"{new_val}"', line, count=1))
 
     unmapped = sorted(set(migrated) - seen_targets)
-    return "\n".join(out_lines) + ("\n" if target_text.endswith("\n") else ""), stats, unmapped
+    return ("\n".join(out_lines) + ("\n" if target_text.endswith("\n") else ""),
+            stats, unmapped, kept)
 
 
 # Since the offline-mode branch the app carries its own data. The old backend
@@ -218,6 +239,11 @@ def main() -> int:
                    help="Production ini to merge into. Repeatable. Default: the two known Xenvious targets.")
     p.add_argument("--out-dir", default="reports/deploy",
                    help="Where to write the merged preview files (default: reports/deploy/).")
+    p.add_argument("--corpus-dir",
+                   help="Decompiled scripts of the NEW build (e.g. scripts/enhanced-1.73-1158). "
+                        "When given, a replacement is refused if the new value does not occur in "
+                        "that corpus while the value already in the target does -- unresolved "
+                        "offsets then cannot overwrite a correct deployed value.")
     p.add_argument("--apply", action="store_true",
                    help="Write the merge directly into each --target (a .bak backup is made first). "
                         "Without this flag nothing outside reports/ is ever touched.")
@@ -230,6 +256,19 @@ def main() -> int:
     migrated_path = rel(args.migrated)
     targets = [pathlib.Path(t) for t in (args.targets or DEFAULT_TARGETS)]
     migrated_text = migrated_path.read_text(encoding="utf-8")
+
+    attested = None
+    if args.corpus_dir:
+        corpus_dir = rel(args.corpus_dir)
+        corpus = "\n".join(f.read_text(encoding="utf-8", errors="replace")
+                           for f in sorted(corpus_dir.glob("*.c")))
+        if not corpus:
+            print(f"[SKIP] no *.c in corpus dir: {corpus_dir}", file=sys.stderr)
+        else:
+            flat = re.sub(r"\[[^\]]*\]", "", corpus)
+
+            def attested(path: str, _flat=flat) -> bool:
+                return re.sub(r"\[[^\]]*\]", "", path) in _flat
 
     out_dir = rel(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -247,11 +286,16 @@ def main() -> int:
             continue
 
         target_text = target.read_text(encoding="utf-8")
-        merged_text, stats, unmapped = merge(migrated_text, target_text)
+        merged_text, stats, unmapped, kept = merge(migrated_text, target_text, attested)
 
         print(f"\n=== {target} ===")
         print(f"  updated={stats['updated']}  unchanged={stats['unchanged']}  "
               f"target_only_static={stats['target_only_static']}  target_only_global={stats['target_only_global']}")
+        if kept:
+            print(f"  [KEPT] {len(kept)} offset(s) NOT overwritten: the migrated value does not occur "
+                  f"in the new corpus while the deployed one does (unresolved migration):")
+            for name, cur_val, new_val in kept:
+                print(f"      {name}: kept {cur_val}  (migration offered {new_val})")
         if unmapped:
             print(f"  [REVIEW] {len(unmapped)} migrated offset(s) have no matching key in this target "
                   f"(new offset never added to production, or a naming mismatch):")
