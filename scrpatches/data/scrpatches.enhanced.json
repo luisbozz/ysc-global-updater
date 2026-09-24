@@ -263,88 +263,268 @@
     },
     {
         "patch_name": "precise templates",
-        "script_name": "fm_capture_creator",
-        "pattern": "5D ? ? ? 06 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 56 10 00",
-        "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 00 47 D5 03 25 3A 57 11 00 38 00 78 43 7B 03 {{ 1 }} 66 71 72",
-        "values": [
-            {
-                "id": 1,
-                "pattern": "64 ? ? ? 66 37 03 68 ? 38 00 47 ? ? 25 3A",
-                "offset": 0,
-                "bytes_to_read": 4
-            }
-        ],
+        "script_name": "fm_race_creator",
+        "pattern": "5D ? ? ? 39 3C 71 39 3E 38 07 72 5D ? ? ? 38 08 2F 76 82 2A 56 ? ? 38 00 47 11 01 75 08 1F 2A 56 ? ? 38 3C 71 0A 1F 56 ? ? 38 08 2F 77 82 06 56 ? ? 38 00 38 07 5D ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "77 09",
         "dev": false,
-        "enabled": false
+        "trigger": "templates"
     },
     {
         "patch_name": "precise templates",
         "script_name": "fm_lts_creator",
-        "pattern": "5D ? ? ? 06 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 56 10 00",
-        "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 00 47 D5 03 25 3A 57 11 00 38 00 78 43 7B 03 {{ 1 }} 66 71 72",
-        "values": [
-            {
-                "id": 1,
-                "pattern": "64 ? ? ? 66 37 03 68 ? 38 00 47 ? ? 25 3A",
-                "offset": 0,
-                "bytes_to_read": 4
-            }
-        ],
+        "pattern": "5D ? ? ? 39 3C 71 39 3E 38 07 72 5D ? ? ? 38 08 2F 76 82 2A 56 ? ? 38 00 47 11 01 75 08 1F 2A 56 ? ? 38 3C 71 0A 1F 56 ? ? 38 08 2F 77 82 06 56 ? ? 38 00 38 07 5D ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "77 09",
         "dev": false,
-        "enabled": false
+        "trigger": "templates"
     },
     {
         "patch_name": "precise templates",
-        "script_name": "fm_race_creator",
-        "pattern": "5D ? ? ? 06 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 56 10 00",
-        "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 00 47 D5 03 25 3A 57 11 00 38 00 78 43 7B 03 {{ 1 }} 66 71 72",
-        "values": [
-            {
-                "id": 1,
-                "pattern": "64 ? ? ? 66 37 03 68 ? 38 00 47 ? ? 25 3A",
-                "offset": 0,
-                "bytes_to_read": 4
-            }
-        ],
+        "script_name": "fm_capture_creator",
+        "pattern": "5D ? ? ? 39 3C 71 39 3E 38 07 72 5D ? ? ? 38 08 2F 76 82 2A 56 ? ? 38 00 47 11 01 75 08 1F 2A 56 ? ? 38 3C 71 0A 1F 56 ? ? 38 08 2F 77 82 06 56 ? ? 38 00 38 07 5D ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "77 09",
         "dev": false,
-        "enabled": false
-    },
-    {
-        "patch_name": "precise templates",
-        "script_name": "fm_survival_creator",
-        "pattern": "5D ? ? ? 06 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 56 10 00",
-        "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 00 47 D5 03 25 3A 57 11 00 38 00 78 43 7B 03 {{ 1 }} 66 71 72",
-        "values": [
-            {
-                "id": 1,
-                "pattern": "64 ? ? ? 66 37 03 68 ? 38 00 47 ? ? 25 3A",
-                "offset": 0,
-                "bytes_to_read": 4
-            }
-        ],
-        "dev": false,
-        "enabled": false
+        "trigger": "templates"
     },
     {
         "patch_name": "precise templates",
         "script_name": "fm_deathmatch_creator",
-        "pattern": "5D ? ? ? 06 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 2A 56 06 00 5D ? ? ? 06 1F 56 10 00",
-        "offset": 0,
-        "bytes_to_patch": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 38 00 47 D5 03 25 3A 57 11 00 38 00 78 43 7B 03 {{ 1 }} 66 71 72",
+        "pattern": "5D ? ? ? 39 3C 71 39 3E 38 07 72 5D ? ? ? 38 08 2F 76 82 2A 56 ? ? 38 00 47 11 01 75 08 1F 2A 56 ? ? 38 3C 71 0A 1F 56 ? ? 38 08 2F 77 82 06 56 ? ? 38 00 38 07 5D ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "77 09",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_survival_creator",
+        "pattern": "5D ? ? ? 39 3C 71 39 3E 38 07 72 5D ? ? ? 38 08 2F 76 82 2A 56 ? ? 38 00 47 11 01 75 08 1F 2A 56 ? ? 38 3C 71 0A 1F 56 ? ? 38 08 2F 77 82 06 56 ? ? 38 00 38 07 5D ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "77 09",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_race_creator",
+        "pattern": "64 ? ? ? 66 38 0B 5D ? ? ? 43 92 03 39 0C 64 ? ? ? 66 37 03 68 10 38 00 47 DF 03 25 40 57 ? ? 77 39 0C 64 ? ? ? 66 37 03 68 10 38 00 77 38 0C 37 03 71 72 5D ? ? ? 5D ? ? ?",
+        "offset": 31,
+        "bytes_to_patch": "64",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_lts_creator",
+        "pattern": "64 ? ? ? 66 38 0B 5D ? ? ? 43 92 03 39 0C 64 ? ? ? 66 37 03 68 10 38 00 47 DF 03 25 40 57 ? ? 77 39 0C 64 ? ? ? 66 37 03 68 10 38 00 77 38 0C 37 03 71 72 5D ? ? ? 5D ? ? ?",
+        "offset": 31,
+        "bytes_to_patch": "64",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_capture_creator",
+        "pattern": "64 ? ? ? 66 38 0B 5D ? ? ? 43 92 03 39 0C 64 ? ? ? 66 37 03 68 10 38 00 47 DF 03 25 40 57 ? ? 77 39 0C 64 ? ? ? 66 37 03 68 10 38 00 77 38 0C 37 03 71 72 5D ? ? ? 5D ? ? ?",
+        "offset": 31,
+        "bytes_to_patch": "64",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_deathmatch_creator",
+        "pattern": "64 ? ? ? 66 38 0B 5D ? ? ? 43 92 03 39 0C 64 ? ? ? 66 37 03 68 10 38 00 47 DF 03 25 40 57 ? ? 77 39 0C 64 ? ? ? 66 37 03 68 10 38 00 77 38 0C 37 03 71 72 5D ? ? ? 5D ? ? ?",
+        "offset": 31,
+        "bytes_to_patch": "64",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_survival_creator",
+        "pattern": "64 ? ? ? 66 38 0B 5D ? ? ? 43 92 03 39 0C 64 ? ? ? 66 37 03 68 10 38 00 47 DF 03 25 40 57 ? ? 77 39 0C 64 ? ? ? 66 37 03 68 10 38 00 77 38 0C 37 03 71 72 5D ? ? ? 5D ? ? ?",
+        "offset": 31,
+        "bytes_to_patch": "64",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_race_creator",
+        "pattern": "2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 56 ? ? 38 00 78 25 28 64 ? ? ? 66 71 72 5D ? ? ? 38 00 47 DF 03 25 40 57 ? ? 38 00 25 08 43 A1 03 64 ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "00 00 00 38 00 78 25 06 64 {{ 1 }}",
+        "dev": false,
         "values": [
             {
                 "id": 1,
-                "pattern": "64 ? ? ? 66 37 03 68 ? 38 00 47 ? ? 25 3A",
-                "offset": 0,
-                "bytes_to_read": 4
+                "pattern": "77 39 0C 64 ? ? ? 66 37 03 68 10",
+                "offset": 4,
+                "bytes_to_read": 3
             }
         ],
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_lts_creator",
+        "pattern": "2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 56 ? ? 38 00 78 25 28 64 ? ? ? 66 71 72 5D ? ? ? 38 00 47 DF 03 25 40 57 ? ? 38 00 25 08 43 A1 03 64 ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "00 00 00 38 00 78 25 06 64 {{ 1 }}",
         "dev": false,
-        "enabled": false
+        "values": [
+            {
+                "id": 1,
+                "pattern": "77 39 0C 64 ? ? ? 66 37 03 68 10",
+                "offset": 4,
+                "bytes_to_read": 3
+            }
+        ],
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_capture_creator",
+        "pattern": "2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 56 ? ? 38 00 78 25 28 64 ? ? ? 66 71 72 5D ? ? ? 38 00 47 DF 03 25 40 57 ? ? 38 00 25 08 43 A1 03 64 ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "00 00 00 38 00 78 25 06 64 {{ 1 }}",
+        "dev": false,
+        "values": [
+            {
+                "id": 1,
+                "pattern": "77 39 0C 64 ? ? ? 66 37 03 68 10",
+                "offset": 4,
+                "bytes_to_read": 3
+            }
+        ],
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_deathmatch_creator",
+        "pattern": "2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 56 ? ? 38 00 78 25 28 64 ? ? ? 66 71 72 5D ? ? ? 38 00 47 DF 03 25 40 57 ? ? 38 00 25 08 43 A1 03 64 ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "00 00 00 38 00 78 25 06 64 {{ 1 }}",
+        "dev": false,
+        "values": [
+            {
+                "id": 1,
+                "pattern": "77 39 0C 64 ? ? ? 66 37 03 68 10",
+                "offset": 4,
+                "bytes_to_read": 3
+            }
+        ],
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_survival_creator",
+        "pattern": "2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 2A 56 ? ? 5D ? ? ? 06 1F 56 ? ? 38 00 78 25 28 64 ? ? ? 66 71 72 5D ? ? ? 38 00 47 DF 03 25 40 57 ? ? 38 00 25 08 43 A1 03 64 ? ? ?",
+        "offset": 30,
+        "bytes_to_patch": "00 00 00 38 00 78 25 06 64 {{ 1 }}",
+        "dev": false,
+        "values": [
+            {
+                "id": 1,
+                "pattern": "77 39 0C 64 ? ? ? 66 37 03 68 10",
+                "offset": 4,
+                "bytes_to_read": 3
+            }
+        ],
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_race_creator",
+        "pattern": "48 79 0D 38 09 38 03 41 14 58 ? ? 7A 38 02 48 7A 0D 38 09 38 03 42 14 38 02 38 00 2F 38 02 46 81 0D 5D ? ? ? 2E 04 00 38 06 7A 15 56 ? ? 38 02 46 A5 0E 25 0B 2C ? ? ? 38 02 38 01",
+        "offset": 32,
+        "bytes_to_patch": "80",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_lts_creator",
+        "pattern": "48 79 0D 38 09 38 03 41 14 58 ? ? 7A 38 02 48 7A 0D 38 09 38 03 42 14 38 02 38 00 2F 38 02 46 81 0D 5D ? ? ? 2E 04 00 38 06 7A 15 56 ? ? 38 02 46 A5 0E 25 0B 2C ? ? ? 38 02 38 01",
+        "offset": 32,
+        "bytes_to_patch": "80",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_capture_creator",
+        "pattern": "48 79 0D 38 09 38 03 41 14 58 ? ? 7A 38 02 48 7A 0D 38 09 38 03 42 14 38 02 38 00 2F 38 02 46 81 0D 5D ? ? ? 2E 04 00 38 06 7A 15 56 ? ? 38 02 46 A5 0E 25 0B 2C ? ? ? 38 02 38 01",
+        "offset": 32,
+        "bytes_to_patch": "80",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_deathmatch_creator",
+        "pattern": "48 79 0D 38 09 38 03 41 14 58 ? ? 7A 38 02 48 7A 0D 38 09 38 03 42 14 38 02 38 00 2F 38 02 46 81 0D 5D ? ? ? 2E 04 00 38 06 7A 15 56 ? ? 38 02 46 A5 0E 25 0B 2C ? ? ? 38 02 38 01",
+        "offset": 32,
+        "bytes_to_patch": "80",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_survival_creator",
+        "pattern": "48 79 0D 38 09 38 03 41 14 58 ? ? 7A 38 02 48 7A 0D 38 09 38 03 42 14 38 02 38 00 2F 38 02 46 81 0D 5D ? ? ? 2E 04 00 38 06 7A 15 56 ? ? 38 02 46 A5 0E 25 0B 2C ? ? ? 38 02 38 01",
+        "offset": 32,
+        "bytes_to_patch": "80",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_race_creator",
+        "pattern": "46 97 04 25 08 2C ? ? ? 38 05 46 30 0C 71 2C ? ? ? 38 00 38 05 5D ? ? ? 38 00 47 53 01 2C ? ? ? 56 ? ? 38 14 38 00 47 53 01 2C ? ? ? 58 ? ? 38 11 38 00 46 77 01 35 01",
+        "offset": 30,
+        "bytes_to_patch": "52",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_lts_creator",
+        "pattern": "46 97 04 25 08 2C ? ? ? 38 05 46 30 0C 71 2C ? ? ? 38 00 38 05 5D ? ? ? 38 00 47 53 01 2C ? ? ? 56 ? ? 38 14 38 00 47 53 01 2C ? ? ? 58 ? ? 38 11 38 00 46 77 01 35 01",
+        "offset": 30,
+        "bytes_to_patch": "52",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_capture_creator",
+        "pattern": "46 97 04 25 08 2C ? ? ? 38 05 46 30 0C 71 2C ? ? ? 38 00 38 05 5D ? ? ? 38 00 47 53 01 2C ? ? ? 56 ? ? 38 14 38 00 47 53 01 2C ? ? ? 58 ? ? 38 11 38 00 46 77 01 35 01",
+        "offset": 30,
+        "bytes_to_patch": "52",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_deathmatch_creator",
+        "pattern": "46 97 04 25 08 2C ? ? ? 38 05 46 30 0C 71 2C ? ? ? 38 00 38 05 5D ? ? ? 38 00 47 53 01 2C ? ? ? 56 ? ? 38 14 38 00 47 53 01 2C ? ? ? 58 ? ? 38 11 38 00 46 77 01 35 01",
+        "offset": 30,
+        "bytes_to_patch": "52",
+        "dev": false,
+        "trigger": "templates"
+    },
+    {
+        "patch_name": "precise templates",
+        "script_name": "fm_survival_creator",
+        "pattern": "46 97 04 25 08 2C ? ? ? 38 05 46 30 0C 71 2C ? ? ? 38 00 38 05 5D ? ? ? 38 00 47 53 01 2C ? ? ? 56 ? ? 38 14 38 00 47 53 01 2C ? ? ? 58 ? ? 38 11 38 00 46 77 01 35 01",
+        "offset": 30,
+        "bytes_to_patch": "52",
+        "dev": false,
+        "trigger": "templates"
     },
     {
         "patch_name": "nop some func for custom funcs",

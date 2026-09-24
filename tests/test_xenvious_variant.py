@@ -188,13 +188,15 @@ class VariantDataTest(unittest.TestCase):
 
     def test_both_variants_carry_the_same_patches(self):
         # They are the same features on the same scripts; only the patterns and
-        # the injected payloads differ per build.
+        # the injected payloads differ per build. How many entries a feature
+        # takes may differ too: a change one build can write in one piece may
+        # need several in another, so this compares the set, not the count.
         names = []
         for variant in VARIANTS:
             patches = json.loads((OFFLINE / variant / "scrpatches.json").read_text(
                 encoding="utf-8"))
-            names.append(sorted((p.get("patch_name"), p.get("script_name"))
-                                for p in patches))
+            names.append(sorted({(p.get("patch_name"), p.get("script_name"))
+                                 for p in patches}))
         self.assertEqual(names[0], names[1])
 
     def test_the_variants_patterns_are_not_byte_identical(self):
