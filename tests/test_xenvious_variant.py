@@ -291,16 +291,16 @@ class EditedSourceTest(unittest.TestCase):
                          "has a pattern at all")
 
     def test_the_edition_is_detected_before_data_is_loaded(self):
-        # Scoped to Window_Loaded: getOffsets() is also called from the timer,
+        # Scoped to Window_Loaded: OffsetLoader.Load() is also called elsewhere,
         # which runs later and does its own detection, so a file-wide position
         # comparison would measure the wrong pair.
         body = self._method_body(self._mainwindow_text(), "private async void Window_Loaded(")
         self.assertIn("GameVariant.Detect();", body)
-        self.assertIn("await getOffsets();", body)
+        self.assertIn("OffsetLoader.Load();", body)
         self.assertLess(body.index("GameVariant.Detect();"),
-                        body.index("await getOffsets();"),
-                        "getOffsets() reads build-specific data, so the build must "
-                        "be known first")
+                        body.index("OffsetLoader.Load();"),
+                        "OffsetLoader.Load() reads build-specific data, so the build "
+                        "must be known first")
 
     def test_a_changed_edition_reloads_the_data(self):
         self.assertIn("GameVariant.DetectChanged()", self._mainwindow_text())
