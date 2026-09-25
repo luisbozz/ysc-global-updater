@@ -26,6 +26,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # ripgrep is a requirement in the README; tools/structural.py uses it to
+      # pick the few files worth reading, and a test checks that it does.
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
