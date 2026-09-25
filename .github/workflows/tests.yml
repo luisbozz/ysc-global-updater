@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, 'feature/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest version the README supports, and the newest release.
+        python-version: ['3.10', '3.x']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Tests that need game dumps or a Xenvious checkout skip themselves;
+      # neither is in this repository.
+      - name: Run the unit tests
+        run: python -m unittest discover -s tests

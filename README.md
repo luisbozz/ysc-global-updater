@@ -405,6 +405,10 @@ python3 tools/migrate_offsets.py \
 python3 -m unittest discover -s tests
 ```
 
+GitHub Actions runs the same command on every pull request, on Python 3.10 and
+the newest release (`.github/workflows/tests.yml`). Tests that need game dumps
+or a Xenvious checkout skip themselves there.
+
 `test_infer_offsets.py` is a regression suite against a *complete* script dump.
 The per-build `scripts/` folders only hold the curated 8-file source set, so it
 is skipped by default. To run it, point `old/` and `new/` at full dumps and opt
