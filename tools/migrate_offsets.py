@@ -912,6 +912,13 @@ def main() -> int:
         if _m and _m.group(1) == _before and _after != _before:
             anchor_map[_name] = _after
 
+    # MP tunables (Global_262145): the migration has no path into this global, so
+    # its offsets used to keep their old value silently. Resolved by the tunable
+    # name each field is registered under in tuneables_processing.
+    from tools.mp_tunables import resolve as _tunables  # noqa: E402
+    for _name, _new in _tunables(_ini_text, old_dir, new_dir).items():
+        anchor_map.setdefault(_name, _new)
+
     unresolved: list = []
     removed_paths: list = []
     migrated_text, stats, changes = migrate_text(
