@@ -41,6 +41,17 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
     #
     # The field constants survive the rename because they are part of the game's
     # data, not the decompiler's vocabulary.
+    # OFFSET_dprops_number: the dynamic prop count. The creator passes "count minus
+    # the field after it" to a limit check; that expression occurs once per corpus.
+    # The plain migration mapped 1.71's f_48742 onto an unrelated field (f_49494)
+    # while the count moved to f_51387, two slots before the dynamic prop array.
+    # The optional '(' and '*' cover both decompilers' spelling.
+    "OFFSET_dprops_number": (
+        re.compile(
+            r"\(?\*?Global_4980736\.f_(\d+) - \*?Global_4980736\.f_\d+\)?, 0, func_\d+\(\)\)"
+        ),
+        "Global_4980736.f_{0}",
+    ),
     "OFFSET_check_creator": (
         re.compile(
             r"Global_(\d+)\s*=\s*1;\s*\w+\s*=\s*false;\s*"

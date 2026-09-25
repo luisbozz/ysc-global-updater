@@ -178,6 +178,12 @@ class VerifiedAnchorsRealDataTest(unittest.TestCase):
     def test_check_creator_1_71_to_1_73(self) -> None:
         self.assertEqual(resolve("OFFSET_check_creator", REAL_OLD, REAL_NEW), "Global_1925981")
 
+    def test_dprops_number_1_71_to_1_73(self) -> None:
+        # The plain migration landed on f_49494, an unrelated field; the count is
+        # two slots before the dynamic prop array (verified live on Enhanced).
+        self.assertEqual(resolve("OFFSET_dprops_number", REAL_OLD, REAL_NEW),
+                         "Global_4980736.f_51387")
+
     def test_hide_creator_menu_1_71_to_1_73(self) -> None:
         self.assertEqual(resolve("OFFSET_hide_creator_menu", REAL_OLD, REAL_NEW), "Global_24569.f_9243")
 
