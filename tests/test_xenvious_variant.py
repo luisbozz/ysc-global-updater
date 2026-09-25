@@ -249,8 +249,31 @@ class EditedSourceTest(unittest.TestCase):
         text = re.sub(r"//[^\n]*", "", text)                   # line comments
         return re.sub(r"/\*.*?\*/", "", text, flags=re.S)      # block comments
 
+    @staticmethod
+    def _mainwindow_text() -> str:
+        # MainWindow is split into partial files (MainWindow.xaml.cs plus
+        # MainWindow*.cs and MainWindow/*.cs); structural checks see all of it.
+        parts = [PROJ / "MainWindow.xaml.cs"]
+        parts += sorted(PROJ.glob("MainWindow.*.cs"))
+        parts += sorted((PROJ / "MainWindow").glob("*.cs"))
+        return "\n".join(p.read_text(encoding="utf-8-sig") for p in parts if p.is_file())
+
+    @staticmethod
+    def _method_body(text: str, signature: str) -> str:
+        start = text.index(signature)
+        depth, i = 0, text.index("{", start)
+        while True:
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+            i += 1
+
     def test_braces_balance(self):
-        for rel in self.EDITED:
+        partials = [p.relative_to(PROJ).as_posix() for p in (PROJ / "MainWindow").glob("*.cs")]
+        for rel in list(self.EDITED) + partials:
             path = PROJ / rel
             self.assertTrue(path.is_file(), f"missing {rel}")
             code = self._strip(path.read_text(encoding="utf-8-sig", errors="replace"))
@@ -271,10 +294,7 @@ class EditedSourceTest(unittest.TestCase):
         # Scoped to Window_Loaded: getOffsets() is also called from the timer,
         # which runs later and does its own detection, so a file-wide position
         # comparison would measure the wrong pair.
-        text = (PROJ / "MainWindow.xaml.cs").read_text(encoding="utf-8-sig")
-        start = text.index("private async void Window_Loaded(")
-        end = text.index("#endregion", start)
-        body = text[start:end]
+        body = self._method_body(self._mainwindow_text(), "private async void Window_Loaded(")
         self.assertIn("GameVariant.Detect();", body)
         self.assertIn("await getOffsets();", body)
         self.assertLess(body.index("GameVariant.Detect();"),
@@ -283,8 +303,7 @@ class EditedSourceTest(unittest.TestCase):
                         "be known first")
 
     def test_a_changed_edition_reloads_the_data(self):
-        text = (PROJ / "MainWindow.xaml.cs").read_text(encoding="utf-8-sig")
-        self.assertIn("GameVariant.DetectChanged()", text)
+        self.assertIn("GameVariant.DetectChanged()", self._mainwindow_text())
 
     def test_disabled_patches_are_skipped_by_the_runner(self):
         text = (PROJ / "Creator Classes" / "ScrPatchesRunner.cs").read_text(
