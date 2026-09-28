@@ -116,6 +116,30 @@ def refresh(old: set[int], conds: list[frozenset[int]]) -> set[int]:
     return found
 
 
+# Lists that are one exact condition in the scripts, found by the first two models of it,
+# instead of the seed heuristic. prop_model_blacklisted is IS_PROP_A_DEV_ONLY_PLACEABLE_PROP
+# (FMMC_Cloud_loader.sch): when a user-made job loads, every prop on it is replaced by
+# PROP_CONST_FENCE02B. The seed version had drifted into unrelated models (even peds).
+ANCHORED = {
+    "prop_model_blacklisted": ("prop_sec_gate_01d", "prop_vault_shutter"),
+}
+
+
+def anchored_set(scripts: pathlib.Path, first: str, second: str) -> set[int]:
+    # The two anchors must open the condition: other lists contain them further in.
+    pattern = re.compile(rf'if \(+\w+ == joaat\("{re.escape(first)}"\) \|\| \w+ == joaat\("{re.escape(second)}"\)')
+    found = set()
+    for name in CREATORS:
+        f = scripts / f"{name}.c"
+        if not f.is_file():
+            continue
+        for line in f.read_text(errors="replace").splitlines():
+            if pattern.search(line):
+                found |= {joaat(n) for n in _JOAAT.findall(line)}
+                found |= {int(n) & 0xFFFFFFFF for n in _EQ_INT.findall(line)}
+    return found
+
+
 SEED = pathlib.Path(__file__).resolve().parents[1] / "data" / "prop_lists_seed.json"
 
 
@@ -137,10 +161,16 @@ def refresh_ini(text: str, scripts: pathlib.Path, seed_path: pathlib.Path = SEED
             rows.append((key, None, None, None, None, None))
             continue
         raw = m.group(3)
-        base = parse_value(",".join(map(str, seed[key])), kind)
         old = parse_value(raw, kind)      # what the ini has now, for the report only
-        found = refresh(base, conds)
-        new = base | found
+        if key in ANCHORED:
+            found = anchored_set(pathlib.Path(scripts), *ANCHORED[key])
+            if not found:
+                raise FileNotFoundError(f"{key}: the condition was not found under {scripts}")
+            base, new = found, found
+        else:
+            base = parse_value(",".join(map(str, seed[key])), kind)
+            found = refresh(base, conds)
+            new = base | found
         # entries whose spelling could never match at runtime (leading zero, spaces)
         fixed = sum(1 for x in raw.split(",")
                     if x != x.strip() or (kind == "hex" and len(x.strip()) > 1 and x.strip()[0] == "0"))
