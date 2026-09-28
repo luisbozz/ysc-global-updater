@@ -56,6 +56,7 @@ LISTS = {
     "prop_model_centitydef_whitelist": "hex",
     "prop_model_stunt_with_color_option": "hex",
     "prop_model_blacklisted": "dec",
+    "prop_model_raceonly": "dec",
     "dprop_model_activationtimer": "dec",
 }
 CREATORS = ("fm_race_creator", "fm_lts_creator", "fm_capture_creator",
@@ -120,8 +121,13 @@ def refresh(old: set[int], conds: list[frozenset[int]]) -> set[int]:
 # instead of the seed heuristic. prop_model_blacklisted is IS_PROP_A_DEV_ONLY_PLACEABLE_PROP
 # (FMMC_Cloud_loader.sch): when a user-made job loads, every prop on it is replaced by
 # PROP_CONST_FENCE02B. The seed version had drifted into unrelated models (even peds).
+# prop_model_raceonly is IS_PROP_A_RACE_ONLY_PROP: outside races they become the fence too.
+# The whole function counts, not only the anchored condition: IS_PROP_A_DEV_ONLY_PLACEABLE_PROP
+# has a second check (the UFO ships gr_prop_damship_01a / imp_prop_ship_01a, dev-only while
+# a tunable bit is off).
 ANCHORED = {
     "prop_model_blacklisted": ("prop_sec_gate_01d", "prop_vault_shutter"),
+    "prop_model_raceonly": ("ch_prop_track_paddock_01", "sum_prop_ac_track_paddock_01"),
 }
 
 
@@ -133,10 +139,14 @@ def anchored_set(scripts: pathlib.Path, first: str, second: str) -> set[int]:
         f = scripts / f"{name}.c"
         if not f.is_file():
             continue
-        for line in f.read_text(errors="replace").splitlines():
-            if pattern.search(line):
-                found |= {joaat(n) for n in _JOAAT.findall(line)}
-                found |= {int(n) & 0xFFFFFFFF for n in _EQ_INT.findall(line)}
+        text = f.read_text(errors="replace")
+        for m in pattern.finditer(text):
+            # the function around the anchor: from its header line to the closing brace
+            start = text.rfind("\n}\n", 0, m.start()) + 3
+            end = text.find("\n}\n", m.start())
+            body = text[start:end]
+            found |= {joaat(n) for n in _JOAAT.findall(body)}
+            found |= {int(n) & 0xFFFFFFFF for n in _EQ_INT.findall(body)}
     return found
 
 
