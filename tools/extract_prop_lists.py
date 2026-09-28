@@ -132,8 +132,10 @@ ANCHORED = {
 
 
 def anchored_set(scripts: pathlib.Path, first: str, second: str) -> set[int]:
-    # The two anchors must open the condition: other lists contain them further in.
-    pattern = re.compile(rf'if \(+\w+ == joaat\("{re.escape(first)}"\) \|\| \w+ == joaat\("{re.escape(second)}"\)')
+    # The first anchor must open the condition (other lists contain it further in) and the
+    # second must be in the same condition; the order behind the first changes between builds
+    # (1.71: sec_gate, ship, vault_shutter; 1.73: sec_gate, vault_shutter).
+    pattern = re.compile(rf'if \(+\w+ == joaat\("{re.escape(first)}"\) \|\|[^\n]*== joaat\("{re.escape(second)}"\)')
     found = set()
     for name in CREATORS:
         f = scripts / f"{name}.c"
