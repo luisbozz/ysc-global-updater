@@ -5,7 +5,9 @@ SWITCH statements on (race type, class, index) that return a model hash:
 the base vehicles (bits of aveh[class]) and the DLC vehicles (bits of the
 adlc words; index i is word i // 31, bit i % 31). Only the land race types
 are read (the table's case 0). Names and display names come from
-DurtyFree's gta-v-data-dumps vehicles.json.
+DurtyFree's gta-v-data-dumps vehicles.json; vehicles newer than the dump come
+from data/race_vehicle_names.json (model and gameName from the game's
+vehicles.meta, names from its global.gxt2, read with CodeWalker).
 
 Reads the compiled script, not the decompiled .c: the decompiler loses the
 base table's returns (Enhanced) or its class labels (Legacy).
@@ -80,8 +82,12 @@ def main():
     dump = json.load(open(a.dump) if a.dump else urllib.request.urlopen(DUMP_URL))
     by_hash = {v["Hash"]: v for v in dump}
 
+    extra = json.load(open(ROOT / "data/race_vehicle_names.json", encoding="utf-8"))
+
     def entry(h):
         v = by_hash.get(h)
+        if not v and str(h) in extra:
+            return {"hash": h, "model": extra[str(h)]["model"], "names": extra[str(h)]["names"]}
         e = {"hash": h, "model": v["Name"].lower() if v else None}
         if v and v.get("DisplayName"):
             e["names"] = {k: v["DisplayName"].get(src) or v["DisplayName"].get("English") for k, src in LANGS.items()}

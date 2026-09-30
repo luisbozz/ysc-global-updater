@@ -1,0 +1,146 @@
+{
+ "2647706545": {
+  "model": "caracara3",
+  "label": "CARACARA3",
+  "names": {
+   "ger": "Caracara (gepanzert)",
+   "eng": "Caracara (Armored)",
+   "ru": "Caracara (бронированный)",
+   "pl": "Caracara (opancerzona)",
+   "fr": "Caracara (blindé)",
+   "zh_cn": "卡拉卡拉（武装版）"
+  }
+ },
+ "2271995207": {
+  "model": "cartuccia",
+  "label": "CARTUCCIA",
+  "names": {
+   "ger": "Cartuccia GT",
+   "eng": "Cartuccia GT",
+   "ru": "Cartuccia GT",
+   "pl": "Cartuccia GT",
+   "fr": "Cartuccia GT",
+   "zh_cn": "卡图西亚 GT"
+  }
+ },
+ "621456687": {
+  "model": "driftcoquette",
+  "label": "DRIFTCOQUE",
+  "names": {
+   "ger": "Coquette",
+   "eng": "Coquette",
+   "ru": "Coquette",
+   "pl": "Coquette",
+   "fr": "Coquette",
+   "zh_cn": "艳妇"
+  }
+ },
+ "3736495778": {
+  "model": "driftdominator8",
+  "label": "DRIFTDOM8",
+  "names": {
+   "ger": "Dominator GTT",
+   "eng": "Dominator GTT",
+   "ru": "Dominator GTT",
+   "pl": "Dominator GTT",
+   "fr": "Dominator GTT",
+   "zh_cn": "公路霸者 GTT"
+  }
+ },
+ "707880171": {
+  "model": "driftelegy",
+  "label": "DRIFTELEGY",
+  "names": {
+   "ger": "Elegy Retro Custom",
+   "eng": "Elegy Retro Custom",
+   "ru": "Elegy Retro заказной",
+   "pl": "Retro Elegy (niest.)",
+   "fr": "Elegy rétro custom",
+   "zh_cn": "挽歌怀旧改装版"
+  }
+ },
+ "2875836634": {
+  "model": "estride",
+  "label": "ESTRIDE",
+  "names": {
+   "ger": "E-Stride",
+   "eng": "E-Stride",
+   "ru": "E-Stride",
+   "pl": "E-Stride",
+   "fr": "E-Stride",
+   "zh_cn": "E-迈进"
+  }
+ },
+ "4017955470": {
+  "model": "horus",
+  "label": "HORUS",
+  "names": {
+   "ger": "Horus",
+   "eng": "Horus",
+   "ru": "Horus",
+   "pl": "Horus",
+   "fr": "Horus",
+   "zh_cn": "荷鲁斯"
+  }
+ },
+ "2234547542": {
+  "model": "laufer",
+  "label": "LAUFER",
+  "names": {
+   "ger": "Läufer",
+   "eng": "Läufer",
+   "ru": "Laufer",
+   "pl": "Läufer",
+   "fr": "Läufer",
+   "zh_cn": "劳费尔"
+  }
+ },
+ "1494708164": {
+  "model": "lrcgt",
+  "label": "LRCGT",
+  "names": {
+   "ger": "LRC GT",
+   "eng": "LRC GT",
+   "ru": "LRC GT",
+   "pl": "LRC GT",
+   "fr": "LRC GT",
+   "zh_cn": "LRC GT"
+  }
+ },
+ "679458690": {
+  "model": "merula",
+  "label": "MERULA",
+  "names": {
+   "ger": "Merula",
+   "eng": "Merula",
+   "ru": "Merula",
+   "pl": "Merula",
+   "fr": "Merula",
+   "zh_cn": "梅鲁拉"
+  }
+ },
+ "3316510914": {
+  "model": "velenogt",
+  "label": "velenogt",
+  "names": {
+   "ger": "Veleno GT",
+   "eng": "Veleno GT",
+   "ru": "Veleno GT",
+   "pl": "Veleno GT",
+   "fr": "Veleno GT",
+   "zh_cn": "维利诺 GT"
+  }
+ },
+ "2362851406": {
+  "model": "warden",
+  "label": "WARDEN",
+  "names": {
+   "ger": "Warden",
+   "eng": "Warden",
+   "ru": "Warden",
+   "pl": "Warden",
+   "fr": "Warden",
+   "zh_cn": "华登"
+  }
+ }
+}
