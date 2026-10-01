@@ -59,7 +59,7 @@ SOURCE_OFFSETS = ROOT / "offsets.ini"
 REPAIRED = ROOT / "scrpatches" / "reports" / "scrpatches.repaired.json"
 
 # What fetch_update.sh downloads: 8 decompiled scripts for the offset side,
-# 6 decrypted dumps for the scrpatch side.
+# 7 decrypted dumps for the scrpatch side and the prop tables.
 C_SCRIPTS = (
     "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
     "fm_race_creator", "fm_survival_creator", "fmmc_launcher",
@@ -68,6 +68,7 @@ C_SCRIPTS = (
 FULL_SCRIPTS = (
     "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
     "fm_race_creator", "fm_survival_creator", "fmmc_launcher",
+    "public_mission_creator",
 )
 
 # The rollback this script documents is `git checkout -- Xenvious/OfflineData`,

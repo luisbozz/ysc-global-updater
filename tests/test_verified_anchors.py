@@ -7,6 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tools.verified_anchors import (  # noqa: E402
+    build_next_map,
     build_anchor_map,
     rebase_value,
     resolve,
@@ -267,6 +268,12 @@ class CrossVariantAnchorTest(unittest.TestCase):
     def test_adlc_array_moved(self):
         self.assertEqual(resolve("OFFSET_adlc", REAL_NEW, REAL_ENHANCED),
                          "Global_4718592.f_128499")
+
+    def test_adlc_resolves_across_the_stride_change(self):
+        # 1.71 has three DLC words per class (/*4*/), 1.73 four (/*5*/, "adlc4").
+        self.assertEqual(resolve("OFFSET_adlc", REAL_OLD, REAL_NEW),
+                         "Global_4718592.f_121999")
+        self.assertEqual(build_next_map(REAL_OLD, REAL_NEW), {"OFFSET_adlc_NEXT": "5"})
 
     def test_hide_creator_menu_survives_the_paren_dialect(self):
         # The newer decompiler drops the redundant grouping parentheses. An

@@ -810,6 +810,7 @@ def main() -> int:
     # aufgeloest statt ueber eine veraltete Hardcode-Zuordnung.
     from tools.verified_anchors import build_anchor_map as _build_anchor_map  # noqa: E402
     from tools.verified_anchors import resolve_actor_weapon_slot_family as _actor_family  # noqa: E402
+    from tools.verified_anchors import build_next_map as _build_next_map  # noqa: E402
     anchor_map = _build_anchor_map(old_dir, new_dir)
     # actor "weapon slot" sub-array (f_161.f_9 in 1.71): nested array-inside-a-
     # struct-field whose offsets.ini values carry no index (Xenvious always
@@ -1024,16 +1025,20 @@ def main() -> int:
     # postprocess_strides erfasst (dessen generische Stride-Karte koennte einen
     # zufaellig passenden, aber falschen 27->X-Fall aus einem anderen Offset-Paar
     # ziehen) -> per verifiziertem Anker NACH beiden Postprocess-Schritten final setzen.
+    # Dasselbe fuer die blanken Strides aus verified_anchors._NEXT_ANCHORS (adlc_NEXT).
+    bare_next = dict(_build_next_map(old_dir, new_dir))
     if actor_next is not None:
-        _next_re = re.compile(r'^(OFFSET_actor_actv_NEXT\s*=\s*)(\d+)(.*)$', re.MULTILINE)
+        bare_next["OFFSET_actor_actv_NEXT"] = actor_next
+    for next_name, next_value in bare_next.items():
+        _next_re = re.compile(r'^(' + re.escape(next_name) + r'\s*=\s*)(\d+)(.*)$', re.MULTILINE)
 
-        def _patch_actor_next(m: re.Match) -> str:
-            if m.group(2) != actor_next:
+        def _patch_next(m: re.Match, next_name=next_name, next_value=next_value) -> str:
+            if m.group(2) != next_value:
                 stats["migrated_anchor"] = stats.get("migrated_anchor", 0) + 1
-                changes.append(("OFFSET_actor_actv_NEXT", m.group(2), actor_next))
-            return f"{m.group(1)}{actor_next}{m.group(3)}"
+                changes.append((next_name, m.group(2), next_value))
+            return f"{m.group(1)}{next_value}{m.group(3)}"
 
-        migrated_text = _next_re.sub(_patch_actor_next, migrated_text)
+        migrated_text = _next_re.sub(_patch_next, migrated_text)
 
     out_path = rel(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

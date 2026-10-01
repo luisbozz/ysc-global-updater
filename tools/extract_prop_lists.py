@@ -56,6 +56,7 @@ LISTS = {
     "prop_model_centitydef_whitelist": "hex",
     "prop_model_stunt_with_color_option": "hex",
     "prop_model_blacklisted": "dec",
+    "prop_model_raceonly": "dec",
     "dprop_model_activationtimer": "dec",
 }
 CREATORS = ("fm_race_creator", "fm_lts_creator", "fm_capture_creator",
@@ -116,6 +117,41 @@ def refresh(old: set[int], conds: list[frozenset[int]]) -> set[int]:
     return found
 
 
+# Lists that are one exact condition in the scripts, found by the first two models of it,
+# instead of the seed heuristic. prop_model_blacklisted is IS_PROP_A_DEV_ONLY_PLACEABLE_PROP
+# (FMMC_Cloud_loader.sch): when a user-made job loads, every prop on it is replaced by
+# PROP_CONST_FENCE02B. The seed version had drifted into unrelated models (even peds).
+# prop_model_raceonly is IS_PROP_A_RACE_ONLY_PROP: outside races they become the fence too.
+# The whole function counts, not only the anchored condition: IS_PROP_A_DEV_ONLY_PLACEABLE_PROP
+# has a second check (the UFO ships gr_prop_damship_01a / imp_prop_ship_01a, dev-only while
+# a tunable bit is off).
+ANCHORED = {
+    "prop_model_blacklisted": ("prop_sec_gate_01d", "prop_vault_shutter"),
+    "prop_model_raceonly": ("ch_prop_track_paddock_01", "sum_prop_ac_track_paddock_01"),
+}
+
+
+def anchored_set(scripts: pathlib.Path, first: str, second: str) -> set[int]:
+    # The first anchor must open the condition (other lists contain it further in) and the
+    # second must be in the same condition; the order behind the first changes between builds
+    # (1.71: sec_gate, ship, vault_shutter; 1.73: sec_gate, vault_shutter).
+    pattern = re.compile(rf'if \(+\w+ == joaat\("{re.escape(first)}"\) \|\|[^\n]*== joaat\("{re.escape(second)}"\)')
+    found = set()
+    for name in CREATORS:
+        f = scripts / f"{name}.c"
+        if not f.is_file():
+            continue
+        text = f.read_text(errors="replace")
+        for m in pattern.finditer(text):
+            # the function around the anchor: from its header line to the closing brace
+            start = text.rfind("\n}\n", 0, m.start()) + 3
+            end = text.find("\n}\n", m.start())
+            body = text[start:end]
+            found |= {joaat(n) for n in _JOAAT.findall(body)}
+            found |= {int(n) & 0xFFFFFFFF for n in _EQ_INT.findall(body)}
+    return found
+
+
 SEED = pathlib.Path(__file__).resolve().parents[1] / "data" / "prop_lists_seed.json"
 
 
@@ -137,10 +173,16 @@ def refresh_ini(text: str, scripts: pathlib.Path, seed_path: pathlib.Path = SEED
             rows.append((key, None, None, None, None, None))
             continue
         raw = m.group(3)
-        base = parse_value(",".join(map(str, seed[key])), kind)
         old = parse_value(raw, kind)      # what the ini has now, for the report only
-        found = refresh(base, conds)
-        new = base | found
+        if key in ANCHORED:
+            found = anchored_set(pathlib.Path(scripts), *ANCHORED[key])
+            if not found:
+                raise FileNotFoundError(f"{key}: the condition was not found under {scripts}")
+            base, new = found, found
+        else:
+            base = parse_value(",".join(map(str, seed[key])), kind)
+            found = refresh(base, conds)
+            new = base | found
         # entries whose spelling could never match at runtime (leading zero, spaces)
         fixed = sum(1 for x in raw.split(",")
                     if x != x.strip() or (kind == "hex" and len(x.strip()) > 1 and x.strip()[0] == "0"))

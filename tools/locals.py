@@ -26,13 +26,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from tools.structural import _align_runs  # noqa: E402
 from tools.dialect import read_source_lines
 
-# Offset-Mode-Suffix -> Creator-Datei. mission teilt SICH ALLE Local-Werte mit lts
-# (worker/cam/pre/test/refresh identisch), nutzt also dasselbe Script.
+# Offset-Mode-Suffix -> Creator-Datei. mission ist der Public Mission Creator
+# (eigenes Script seit 1.73; die alten _mission-Werte waren Kopien von lts).
 CREATOR_FILES = {
     "survival": "fm_survival_creator.c",
     "capture": "fm_capture_creator.c",
     "lts": "fm_lts_creator.c",
-    "mission": "fm_lts_creator.c",
+    "mission": "public_mission_creator.c",
     "dm": "fm_deathmatch_creator.c",
     "race": "fm_race_creator.c",
 }

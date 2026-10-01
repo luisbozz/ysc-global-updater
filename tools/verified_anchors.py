@@ -23,6 +23,14 @@ import pathlib
 import re
 from tools.dialect import read_source
 
+# Race DLC vehicle bits: Global_4718592.f_N[class /*STRIDE*/][word], saved as adlc..adlc4.
+# The data array is a parameter indexed by the word, "(*uParam5)[iVar22]" in Legacy and
+# "uParam5->[k]" in Enhanced; the other 2D array saved this way is a struct field
+# ("uParam0->f_2657[j]") and does not match.
+_ADLC_ARRAY = re.compile(
+    r"DATAARRAY_ADD_INT\((?:\(\*\w+\)|\w+->)\[(\w+)\], Global_4718592\.f_(\d+)\[[^\]]*/\*(\d+)\*/\]\[\1\]\)"
+)
+
 # offset name -> (regex with the numeric Global_/.f_ parts captured, format template)
 _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
     # OFFSET_check_creator: first statement of the "can the creator (re)load
@@ -96,14 +104,10 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
         "Global_4718592.f_{0}",
     ),
     # OFFSET_adlc: a 2D tuneable array written into a data file. The native plus
-    # the literal /*5*/ outer dimension is unique under this root in both
-    # corpora; the field number itself moves.
-    "OFFSET_adlc": (
-        re.compile(
-            r"DATAARRAY_ADD_INT\([^;]{0,40}, Global_4718592\.f_(\d+)\[[^\]]*/\*5\*/\]\["
-        ),
-        "Global_4718592.f_{0}",
-    ),
+    # the second index is unique under this root in both corpora; the field
+    # number moves, and so does the outer dimension (/*4*/ in 1.71, /*5*/ in 1.73
+    # when a fourth word "adlc4" was added), so neither is pinned.
+    "OFFSET_adlc": (_ADLC_ARRAY, "Global_4718592.f_{1}"),
     # OFFSET_vsbsout: the ini stores the BASE field of a small literal-index int
     # array (vsclout/vsthout/vsenout/vshwout/vstgout/vsbsout share one array,
     # ``f_BASE[0..5]``; offsets.ini's raw number is exactly the array base, i.e.
@@ -254,6 +258,27 @@ def resolve(offset_name: str, old_dir: pathlib.Path, new_dir: pathlib.Path) -> s
     if len(new_values) != 1:
         return None
     return next(iter(new_values))
+
+
+# Bare-integer strides (``OFFSET_x_NEXT = N``, no quotes). The main pipeline only
+# migrates quoted values, and the generic stride post-pass misses a stride whose
+# array offset in offsets.ini carries no /*N*/ (OFFSET_adlc is the bare base), so
+# a grown element kept its old size: adlc_NEXT stayed 4 in 1.73 where it is 5.
+_NEXT_ANCHORS: dict[str, tuple[re.Pattern, str]] = {
+    "OFFSET_adlc_NEXT": (_ADLC_ARRAY, "{2}"),
+}
+
+
+def build_next_map(old_dir: pathlib.Path, new_dir: pathlib.Path) -> dict:
+    """Resolve the bare-integer strides in _NEXT_ANCHORS, same rules as resolve()."""
+    result = {}
+    for name, (pattern, template) in _NEXT_ANCHORS.items():
+        if len(_matches(old_dir, pattern, template)) != 1:
+            continue
+        new_values = _matches(new_dir, pattern, template)
+        if len(new_values) == 1:
+            result[name] = next(iter(new_values))
+    return result
 
 
 def build_anchor_map(old_dir: pathlib.Path, new_dir: pathlib.Path) -> dict:

@@ -51,11 +51,11 @@ base="https://raw.githubusercontent.com/$repo/$ref"
 scripts_dir="$root/scripts/$label"
 dumps_dir="$root/scrpatches/disasm/$label"
 
-# .c for the offset updater (8), .ysc.full for scrpatches (the 6 patched scripts)
+# .c for the offset updater (8), .ysc.full for scrpatches and the prop tables (7)
 c_scripts="fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creator \
            fm_survival_creator fmmc_launcher public_mission_creator tuneables_processing"
 full_scripts="fm_capture_creator fm_deathmatch_creator fm_lts_creator fm_race_creator \
-              fm_survival_creator fmmc_launcher"
+              fm_survival_creator fmmc_launcher public_mission_creator"
 # Scripts that hold a handful of offsets but do not belong in the corpus: the
 # creator launch sequence flips flags in maintransition.c, which drives the
 # transition into and out of a creator. Kept in a context/ subfolder so neither
