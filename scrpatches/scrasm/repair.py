@@ -8,6 +8,8 @@ change. So we rewrite operands in place, which cannot disturb jumps or offsets:
 * NATIVE  -> old index -> canonical hash -> new index (per-script native tables)
 * CALL, internal (target inside the injected block) -> relocate by new base
 * CALL, external (an R* function) -> new address via fingerprint matching
+* string references (a push followed by ``STRING``) -> same text in the new
+  build's string table; the offset moves on every update, the text does not
 * GLOBAL_U24 references are reported (they embed offsets migrated by offsets.ini)
 
 The sacrificial injection base is the unique location of the anchor pattern
@@ -47,13 +49,16 @@ class RepairReport:
     offsets_missing: list = field(default_factory=list)  # (op, old) with no mapping
     stride_updated: list = field(default_factory=list)   # (global, ioffset, old, new)
     stride_review: list = field(default_factory=list)    # (global, ioffset, value)
+    strings_updated: list = field(default_factory=list)  # (text, old offset, new offset)
+    strings_missing: list = field(default_factory=list)  # (text, old offset): absent or ambiguous
     globals_seen: set = field(default_factory=set)
 
     @property
     def ok(self) -> bool:
         return (not self.native_missing and not self.external_unresolved
                 and not self.stride_review
-                and not self.offsets_missing)
+                and not self.offsets_missing
+                and not self.strings_missing)
 
     @property
     def needs_review(self) -> list[int]:
@@ -103,6 +108,7 @@ def repair_payload(old_bytes: bytes, old_base: int, new_base: int,
                    confidence_of=None,
                    old_strides: dict[tuple[int, int], int] | None = None,
                    new_strides: dict[tuple[int, int], int] | None = None,
+                   old_full=None, new_full=None,
                    ) -> tuple[bytes, RepairReport]:
     ins = disassemble(old_bytes, base=old_base)
     new_hash_index = new_resolver.index_of_hash()
@@ -148,10 +154,32 @@ def repair_payload(old_bytes: bytes, old_base: int, new_base: int,
                     rep.stride_updated.append((g_ins.u24, io_ins.s16, i.u16, new_s))
                 elif new_s is not None and new_s != i.u16 and old_s != i.u16:
                     rep.stride_review.append((g_ins.u24, io_ins.s16, i.u16))
+        elif (i.name == "PUSH_CONST_U24" and idx + 1 < len(ins)
+              and ins[idx + 1].name == "STRING" and old_full is not None):
+            _migrate_string(b, i.u24, old_full, new_full, rep)
         elif i.name in ("GLOBAL_U24", "GLOBAL_U24_LOAD", "GLOBAL_U24_STORE"):
             rep.globals_seen.add(i.u24)
         out += b
     return bytes(out), rep
+
+
+def _migrate_string(b: bytearray, old_off: int, old_full, new_full,
+                    rep: RepairReport) -> None:
+    """Point a string push at the same text in the new build's string table.
+
+    Only an entry that occurs exactly once can be trusted; anything else leaves
+    the old offset in place and marks the payload for review, because a wrong
+    offset is still a valid string -- just a different label on screen, or an
+    out-of-range read.
+    """
+    text = old_full.string_at(old_off)
+    hits = new_full.string_offsets(text) if text is not None else []
+    if len(hits) != 1:
+        rep.strings_missing.append((text, old_off))
+        return
+    _put_u24(b, 1, hits[0])
+    if hits[0] != old_off:
+        rep.strings_updated.append((text, old_off, hits[0]))
 
 
 @dataclass
@@ -197,6 +225,7 @@ class ScriptContext:
             self.old_resolver, self.new_resolver, self.addr_map,
             script=script, confidence_of=self.confidence_of,
             old_strides=self.old_strides, new_strides=self.new_strides,
+            old_full=self.old_full, new_full=self.new_full,
         )
         if builds is not None:
             out = self._migrate_offsets(out, rep, builds)

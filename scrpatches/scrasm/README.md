@@ -100,6 +100,12 @@ fixed-width), so operands are rewritten **in place**:
   2. *loose* — params/returns + native-hash sequence, unique both sides
   3. *positional* — order-preserving gap fill between confident anchors (guarded
      by a structural similarity check)
+- **STRING** — a push followed by `STRING` is a string-table offset. The text
+  is game content and survives an update, the offset does not, so the push is
+  pointed at the entry with the same text in the new build. Text that is absent
+  or not unique there leaves the payload in review.
+- **struct offsets and menu states** — from the measured tables in
+  `structoffsets.py`, re-verified against both builds on every run.
 
 ## Validation
 

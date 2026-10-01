@@ -38,6 +38,7 @@ STRUCT_OPS = {
     "IOFFSET_U8": 1,
     "IOFFSET_S16_LOAD": 2,
     "IOFFSET_U8_LOAD": 1,
+    "IOFFSET_S16_STORE": 2,
     "ARRAY_U16": 2,
     "ARRAY_U8": 1,
     "ARRAY_U16_LOAD": 2,
@@ -67,6 +68,18 @@ SCRIPT_LOCAL_OPS = {"STATIC_U16": 2}
 #                 in each build, neighbours 125914/125945/125976 all move by
 #                 +1275 alongside it
 #
+#   14, 593       the creator menu's per-row target table (``f_14``) and row
+#                 count (``f_593``) on the struct every creator menu function
+#                 takes; both moved up by one with the rest of that struct, as
+#                 the decompiled menu builders show (``f_14[5] = 549`` against
+#                 ``f_15[5] = 556``, ``f_593 = 44`` against ``f_594 = 44``)
+#   152 .. 867    not offsets but menu state ids, which the payload stores into
+#                 that table. Read off the Mission Creator branch of the menu
+#                 builder, which every creator script carries: the rows labelled
+#                 FMMCCMENU_4 (actors), FMMCCMENU_3 (objects), FMMCCMENU_11
+#                 (locations) and FMMC_WRLD_PRP (fixtures). Enhanced numbers its
+#                 states four higher than Legacy 1.73.
+#
 # Entries that did not move are listed too, so "absent from the table" always
 # means "never checked" rather than "checked and unchanged".
 OFFSETS = {
@@ -78,6 +91,12 @@ OFFSETS = {
         ("IOFFSET_S16", 6841): 6844,
         ("IOFFSET_S16", 6893): 6896,
         ("PUSH_CONST_U24", 125909): 127184,
+        ("IOFFSET_U8", 14): 15,
+        ("IOFFSET_S16_STORE", 593): 594,
+        ("PUSH_CONST_U24", 152): 153,
+        ("PUSH_CONST_U24", 144): 145,
+        ("PUSH_CONST_U24", 549): 556,
+        ("PUSH_CONST_U24", 867): 883,
         ("IOFFSET_U8", 16): 16,
         ("IOFFSET_U8", 19): 19,
         ("ARRAY_U8", 36): 36,
@@ -102,6 +121,12 @@ OFFSETS = {
         ("IOFFSET_S16", 6841): 6844,
         ("IOFFSET_S16", 6893): 6896,
         ("PUSH_CONST_U24", 125909): 133684,
+        ("IOFFSET_U8", 14): 15,
+        ("IOFFSET_S16_STORE", 593): 594,
+        ("PUSH_CONST_U24", 152): 157,
+        ("PUSH_CONST_U24", 144): 149,
+        ("PUSH_CONST_U24", 549): 560,
+        ("PUSH_CONST_U24", 867): 887,
         ("IOFFSET_U8", 16): 16,
         ("IOFFSET_U8", 19): 19,
         ("ARRAY_U8", 36): 36,
@@ -120,16 +145,26 @@ OFFSETS = {
 # candidates by frequency alone -- {26:2, 1:67, 2:2, 24:14, 12:12, 25:12, 32:2}
 # against 51129's {27:2, 1:67, 3:2, 25:14, 13:12, 26:12, 33:2} settled it, while
 # the other candidate's profile was {239:13}.
+#
+# fm_survival_creator and fm_deathmatch_creator follow the same worker struct:
+# 7143 {1:11, 2:3, 3:24, 12:1, 20:5, ...} becomes 7337 / 7539 with every field
+# from 2 up shifted by one (3:3, 4:24, 13:1, 21:5, ...), and 42735 becomes
+# 43326 / 43428 the same way. Both agree with the offsets migration's
+# current_creator_worker_* values.
 STATICS = {
     ("1.71-3586", "1.73-3889"): {
         "fm_lts_creator": {8684: 8883},
         "fm_capture_creator": {8321: 8520},
         "fm_race_creator": {50517: 51129},
+        "fm_survival_creator": {7143: 7337},
+        "fm_deathmatch_creator": {42735: 43326},
     },
     ("1.71-3586", "enhanced-1.73-1158"): {
         "fm_lts_creator": {8684: 9185},
         "fm_capture_creator": {8321: 8822},
         "fm_race_creator": {50517: 51531},
+        "fm_survival_creator": {7143: 7539},
+        "fm_deathmatch_creator": {42735: 43428},
     },
 }
 
@@ -145,10 +180,21 @@ class Result:
         return not self.missing and not self.unverified
 
 
+def _string_pushes(instructions) -> set:
+    """Offsets of pushes that feed a ``STRING``: string-table offsets, not
+    struct immediates. repair.py migrates those by their text."""
+    return {a.offset for a, b in zip(instructions, instructions[1:])
+            if b.name == "STRING"}
+
+
 def used(payload: bytes) -> dict:
     """Every struct immediate in a payload, and how often it appears."""
     out: dict = {}
-    for ins in disassemble(payload, base=0):
+    instructions = disassemble(payload, base=0)
+    strings = _string_pushes(instructions)
+    for ins in instructions:
+        if ins.offset in strings:
+            continue
         if ins.name in STRUCT_OPS or ins.name in SCRIPT_LOCAL_OPS:
             key = (ins.name, int.from_bytes(ins.operands, "little"))
             out[key] = out.get(key, 0) + 1
@@ -210,7 +256,11 @@ def migrate(payload: bytes, old_build: str, new_build: str,
 def apply(payload: bytes, mapped: dict) -> bytes:
     """Rewrite a payload's struct offsets in place. Length never changes."""
     out = bytearray(payload)
-    for ins in disassemble(payload, base=0):
+    instructions = disassemble(payload, base=0)
+    strings = _string_pushes(instructions)
+    for ins in instructions:
+        if ins.offset in strings:
+            continue
         if ins.name not in STRUCT_OPS and ins.name not in SCRIPT_LOCAL_OPS:
             continue
         old_val = int.from_bytes(ins.operands, "little")

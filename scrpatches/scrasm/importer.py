@@ -75,7 +75,7 @@ def _operand_text(ins: Instruction, label_names: dict[int, str],
 
 def to_ysa(code: bytes, base: int = 0, comments: bool = False,
            resolver=None, funcs_by_addr: dict[int, str] | None = None,
-           function_labels: bool = False) -> str:
+           function_labels: bool = False, string_at=None) -> str:
     ins_list = disassemble(code, base=base)
 
     # collect all branch targets that need labels
@@ -99,6 +99,10 @@ def to_ysa(code: bytes, base: int = 0, comments: bool = False,
 
     lines: list[str] = []
     emitted: set[int] = set()
+    # A push right before STRING is a string-table offset; name its text in the
+    # comment, since the number alone means nothing to a reader.
+    string_push = {a.offset for a, b in zip(ins_list, ins_list[1:])
+                   if b.name == "STRING"}
     for ins in ins_list:
         if ins.offset in label_names:
             lines.append(f"{label_names[ins.offset]}:")
@@ -109,6 +113,8 @@ def to_ysa(code: bytes, base: int = 0, comments: bool = False,
         text = f"  {ins.name}" + (f" {args}" if args else "")
         if comments:
             text = f"{text:<44} ; 0x{ins.offset:X}  {ins.hexbytes()}"
+            if string_at is not None and ins.offset in string_push and ins.operands:
+                text += f'  "{string_at(int.from_bytes(ins.operands, "little"))}"'
         lines.append(text)
 
     # A branch may target the address right after the last instruction (a common

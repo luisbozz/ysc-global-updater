@@ -315,6 +315,10 @@ L_3F4D2B:
 fn6:
   ENTER 0, 2                                 ; 0x3F4D3B  2D 00 02 00 00
   CALL 0x04AD3C                              ; 0x3F4D40  5D 3C AD 04
-  LEAVE 0, 0                                 ; 0x3F4D44  2E 00 00
-  NOP                                        ; 0x3F4D47  00
-  NOP                                        ; 0x3F4D48  00
+  JZ L_3F4D53                                ; 0x3F4D44  56 0C 00
+  GLOBAL_U24_LOAD 2884084                    ; 0x3F4D47  62 F4 01 2C
+  PUSH_CONST_S16 -17                         ; 0x3F4D4B  43 EF FF
+  IAND                                       ; 0x3F4D4E  1F
+  GLOBAL_U24_STORE 2884084                   ; 0x3F4D4F  63 F4 01 2C
+L_3F4D53:
+  LEAVE 0, 0                                 ; 0x3F4D53  2E 00 00

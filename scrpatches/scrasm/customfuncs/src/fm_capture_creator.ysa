@@ -315,6 +315,60 @@ L_239E82:
 fn6:
   ENTER 0, 2                                 ; 0x239E92  2D 00 02 00 00
   CALL 0x066F19                              ; 0x239E97  5D 19 6F 06
-  LEAVE 0, 0                                 ; 0x239E9B  2E 00 00
-  NOP                                        ; 0x239E9E  00
-  NOP                                        ; 0x239E9F  00
+  JZ L_239EAA                                ; 0x239E9B  56 0C 00
+  GLOBAL_U24_LOAD 2884084                    ; 0x239E9E  62 F4 01 2C
+  PUSH_CONST_S16 -17                         ; 0x239EA2  43 EF FF
+  IAND                                       ; 0x239EA5  1F
+  GLOBAL_U24_STORE 2884084                   ; 0x239EA6  63 F4 01 2C
+L_239EAA:
+  LEAVE 0, 0                                 ; 0x239EAA  2E 00 00
+fn7:
+  ENTER 1, 3                                 ; 0x239EAD  2D 01 03 00 00
+  PUSH_CONST_U8 15                           ; 0x239EB2  25 0F
+  PUSH_CONST_U24 318004                      ; 0x239EB4  64 34 DA 04  "FMMCCMENU_3"
+  STRING                                     ; 0x239EB8  66
+  PUSH_CONST_0                               ; 0x239EB9  71
+  PUSH_CONST_1                               ; 0x239EBA  72
+  PUSH_CONST_0                               ; 0x239EBB  71
+  PUSH_CONST_0                               ; 0x239EBC  71
+  PUSH_CONST_0                               ; 0x239EBD  71
+  CALL 0x0084D3                              ; 0x239EBE  5D D3 84 00
+  PUSH_CONST_U24 144                         ; 0x239EC2  64 90 00 00
+  PUSH_CONST_U8 15                           ; 0x239EC6  25 0F
+  LOCAL_U8_LOAD 0                            ; 0x239EC8  38 00
+  IOFFSET_U8 14                              ; 0x239ECA  40 0E
+  ARRAY_U8_STORE 1                           ; 0x239ECC  36 01
+  PUSH_CONST_U8 16                           ; 0x239ECE  25 10
+  PUSH_CONST_U24 317920                      ; 0x239ED0  64 E0 D9 04  "FMMCCMENU_11"
+  STRING                                     ; 0x239ED4  66
+  PUSH_CONST_0                               ; 0x239ED5  71
+  PUSH_CONST_1                               ; 0x239ED6  72
+  PUSH_CONST_0                               ; 0x239ED7  71
+  PUSH_CONST_0                               ; 0x239ED8  71
+  PUSH_CONST_0                               ; 0x239ED9  71
+  CALL 0x0084D3                              ; 0x239EDA  5D D3 84 00
+  PUSH_CONST_U24 549                         ; 0x239EDE  64 25 02 00
+  PUSH_CONST_U8 16                           ; 0x239EE2  25 10
+  LOCAL_U8_LOAD 0                            ; 0x239EE4  38 00
+  IOFFSET_U8 14                              ; 0x239EE6  40 0E
+  ARRAY_U8_STORE 1                           ; 0x239EE8  36 01
+  PUSH_CONST_U8 17                           ; 0x239EEA  25 11
+  PUSH_CONST_U24 318211                      ; 0x239EEC  64 03 DB 04  "FMMC_WRLD_PRP"
+  STRING                                     ; 0x239EF0  66
+  PUSH_CONST_0                               ; 0x239EF1  71
+  PUSH_CONST_1                               ; 0x239EF2  72
+  PUSH_CONST_0                               ; 0x239EF3  71
+  PUSH_CONST_0                               ; 0x239EF4  71
+  PUSH_CONST_0                               ; 0x239EF5  71
+  CALL 0x0084D3                              ; 0x239EF6  5D D3 84 00
+  PUSH_CONST_U24 867                         ; 0x239EFA  64 63 03 00
+  PUSH_CONST_U8 17                           ; 0x239EFE  25 11
+  LOCAL_U8_LOAD 0                            ; 0x239F00  38 00
+  IOFFSET_U8 14                              ; 0x239F02  40 0E
+  ARRAY_U8_STORE 1                           ; 0x239F04  36 01
+  PUSH_CONST_U8 18                           ; 0x239F06  25 12
+  LOCAL_U8_LOAD 0                            ; 0x239F08  38 00
+  IOFFSET_S16_STORE 593                      ; 0x239F0A  48 51 02
+  LEAVE 1, 0                                 ; 0x239F0D  2E 01 00
+  PUSH_CONST_U32 1481461333                  ; 0x239F10  28 55 4E 4D 58
+  CALL @fn7                                  ; 0x239F15  5D AD 9E 23
