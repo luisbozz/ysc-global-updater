@@ -1,0 +1,107 @@
+; customfuncs payload for public_mission_creator in its first extra code page (Enhanced 1.0.1158, pc 0x34C000).
+; Variables live in the data page (string page 63): PUSH_CONST_U24 0xFC000 + offset; STRING
+; gives a pointer to them. Layout in ../../drawer.py. Built with ../../build_page.py.
+
+; Dispatch on "check": bit 0 model dimensions, bit 3 hovered prop model, bit 4 creator refresh.
+; Bits 1/2 (play areas, gang chase) are drawn by the drawer instead.
+
+fn0:
+  ENTER 0, 2
+  PUSH_CONST_U24 0xFC018                      ; check
+  STRING
+  LOAD
+  PUSH_CONST_0
+  NOP
+  IS_BIT_SET
+  JZ L_B3
+  CALL @fn1
+L_B3:
+  PUSH_CONST_U24 0xFC018                      ; check
+  STRING
+  LOAD
+  PUSH_CONST_3
+  NOP
+  IS_BIT_SET
+  JZ L_B4
+  CALL @fn5
+L_B4:
+  PUSH_CONST_U24 0xFC018                      ; check
+  STRING
+  LOAD
+  PUSH_CONST_4
+  NOP
+  IS_BIT_SET
+  JZ L_END
+  CALL @fn6
+L_END:
+  LEAVE 0, 0
+
+; Model dimensions of "dimension model" into "dimension min" and "dimension max".
+fn1:
+  ENTER 0, 2
+  PUSH_CONST_U24 0xFC028                      ; dimension model
+  STRING
+  LOAD
+  NATIVE 1, 1, @STREAMING::IS_MODEL_VALID
+  INOT
+  JZ L_F1
+  LEAVE 0, 0
+L_F1:
+  PUSH_CONST_U24 0xFC028                      ; dimension model
+  STRING
+  LOAD
+  PUSH_CONST_U24 0xFC030                      ; dimension min
+  STRING
+  PUSH_CONST_U24 0xFC048                      ; dimension max
+  STRING
+  NATIVE 3, 0, @MISC::GET_MODEL_DIMENSIONS
+  LEAVE 0, 0
+
+; Model of the prop under the cursor (fLocal_7669.f_13; f_12 stays 0 in this creator) into "hovered model".
+fn5:
+  ENTER 0, 2
+  STATIC_U16 7669
+  IOFFSET_U8_LOAD 13
+  NATIVE 1, 1, @ENTITY::DOES_ENTITY_EXIST
+  DUP
+  JZ L_F5A
+  STATIC_U16 7669
+  IOFFSET_U8_LOAD 13
+  NATIVE 1, 1, @ENTITY::IS_ENTITY_AN_OBJECT
+  INOT
+  IAND
+L_F5A:
+  JZ L_F5B
+  LEAVE 0, 0
+L_F5B:
+  STATIC_U16 7669
+  IOFFSET_U8_LOAD 13
+  NATIVE 1, 1, @ENTITY::GET_ENTITY_MODEL
+  PUSH_CONST_U24 0xFC020                      ; hovered model
+  STRING
+  STORE
+  LEAVE 0, 0
+
+; Creator refresh (func_6212); clears bit 4 once it reports done.
+fn6:
+  ENTER 0, 2
+  CALL 0x27FF87
+  JZ L_F6
+  PUSH_CONST_U24 0xFC018                      ; check
+  STRING
+  LOAD
+  PUSH_CONST_S16 -17
+  IAND
+  PUSH_CONST_U24 0xFC018                      ; check
+  STRING
+  STORE
+L_F6:
+  LEAVE 0, 0
+
+; Called from the main loop instead of func_1: the original call, the dispatcher, the drawer.
+hook:
+  ENTER 0, 2
+  CALL 0x000475
+  CALL @fn0
+  CALL dl_main
+  LEAVE 0, 0
