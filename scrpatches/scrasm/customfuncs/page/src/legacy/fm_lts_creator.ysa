@@ -357,7 +357,7 @@ fn7:
   PUSH_CONST_0
   PUSH_CONST_0
   CALL 0x00B0AC
-  PUSH_CONST_U24 153
+  PUSH_CONST_U24 153                         ; ~IOFFSET 272  menu id, compared with the current menu
   PUSH_CONST_U8 11
   LOCAL_U8_LOAD 0
   IOFFSET_U8 15
@@ -371,7 +371,7 @@ fn7:
   PUSH_CONST_0
   PUSH_CONST_0
   CALL 0x00B0AC
-  PUSH_CONST_U24 145
+  PUSH_CONST_U24 145                         ; ~IOFFSET 272  menu id, compared with the current menu
   PUSH_CONST_U8 12
   LOCAL_U8_LOAD 0
   IOFFSET_U8 15

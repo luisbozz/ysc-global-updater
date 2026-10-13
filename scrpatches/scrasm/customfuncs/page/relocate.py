@@ -166,10 +166,26 @@ class Mover:
             self._align[key] = m
         return self._align[key]
 
-    def vote(self, cls: str, value: int, limit: int = 40):
+    def vote(self, cls: str, value: int, context: tuple = (), near: tuple = (), limit: int = 40):
+        """The other build's operand at the places Rockstar's code uses this one.
+
+        A small number like a menu id is used for many unrelated things. Only the places
+        followed by the same instructions as in the payload (``context``) mean the same;
+        when some places match, only they vote. ``near`` comes from a "~IOFFSET 272"
+        comment in the source: only places with these instructions in the next few vote
+        (e.g. a menu id is compared with the current-menu field)."""
         sites = self.a.uses.get((cls, value), [])
         if not sites:
             return None, "not used by Rockstar's code"
+        if near:
+            sites = [i for i in sites
+                     if set(near) <= set(self._context(self.a.index, i, CONTEXT))]
+            if not sites:
+                return None, "no use next to " + ", ".join(near)
+        elif context:
+            same = [i for i in sites if self._context(self.a.index, i, len(context)) == context]
+            if same:
+                sites = same
         ia, ib = self.a.index, self.b.index
         start_to_k = {f.start_offset: k for k, f in enumerate(ib.functions)}
         votes = collections.Counter()
@@ -195,7 +211,35 @@ class Mover:
         if n >= 2 and n >= 0.6 * total or total == 1:
             how = f"{n}/{total} votes" + (" (single)" if total == 1 else "")
             return best, how
-        return None, "votes split: " + ", ".join(f"{v}x{c}" for v, c in votes.most_common(4))
+        return None, "votes split: " + ", ".join(f"{v}x{c}" for v, c in votes.most_common(4)) \
+            + "; " + self._split_hint(sites, votes)
+
+    def _split_hint(self, sites, votes) -> str:
+        """Which neighbour goes with which answer, so a person (or a "~" comment) can pick."""
+        ia = self.a.index
+        by = collections.defaultdict(collections.Counter)
+        for i in sites:
+            for tok in self._context(ia, i, CONTEXT):
+                if tok.startswith(("IOFFSET ", "ARRAY ")):
+                    by[tok][self._answer(i)] += 1
+        clean = [(tok, c) for tok, c in by.items() if len(c) == 1 and None not in c and sum(c.values()) >= 3]
+        clean.sort(key=lambda x: -sum(x[1].values()))
+        return " ".join(f"next to {tok}: {next(iter(c))}" for tok, c in clean[:3]) or "no clear pattern"
+
+    def _answer(self, i: int):
+        ia, ib = self.a.index, self.b.index
+        fa = self.a.func_of[i]
+        new_start = self.amap.get(ia.functions[fa].start_offset)
+        if new_start is None:
+            return None
+        k = next((k for k, f in enumerate(ib.functions) if f.start_offset == new_start), None)
+        j = self._aligned(fa, k).get(i)
+        return None if j is None else operand_value(ib.instructions[j])
+
+    @staticmethod
+    def _context(index, i: int, n: int) -> tuple:
+        return tuple(context_token(ins.name, ins.operands)
+                     for ins in index.instructions[i + 1:i + 1 + n])
 
     # -- ini deltas -----------------------------------------------------------------
     def delta(self, key: str):
@@ -205,6 +249,25 @@ class Mover:
         return to_v - from_v
 
 
+# How many following instructions must match for a vote to count as the same use.
+CONTEXT = 4
+_SHORT_PUSH = re.compile(r"^PUSH_CONST_(U8|S16|U24|U32|M?\d|F)")
+
+
+def context_token(name: str, operands: bytes | str = b"") -> str:
+    """An instruction as context: pushes of any size are alike (the compiler picks the
+    size by the value), field and array offsets keep their operand."""
+    if _SHORT_PUSH.match(name):
+        return "PUSH"
+    if name.startswith(("IOFFSET", "ARRAY")):
+        if isinstance(operands, (bytes, bytearray)):
+            operands = str(int.from_bytes(operands, "little"))
+        return f"{name.split('_')[0]} {operands}"
+    return name
+
+
+# "~IOFFSET 272" or "~IOFFSET 272,ARRAY 3" in a comment: see Mover.vote.
+_NEAR = re.compile(r"~([A-Z_]+(?: -?\d+)?(?:,\s*[A-Z_]+(?: -?\d+)?)*)")
 _INS = re.compile(r"^(\s*)([A-Z][A-Z0-9_]*)(\s+)([^;]*?)(\s*)(;.*)?$")
 _OP = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\b(?!:)")
 
@@ -219,7 +282,8 @@ def relocate(text: str, mv: Mover):
             out.append(line)
             continue
         op, arg, comment = m.group(2), m.group(4).strip(), m.group(6) or ""
-        nxt = next((o.group(1) for o in map(_OP.match, lines[n + 1:]) if o), None)
+        following = [m2 for m2 in (_INS.match(l) or _OP.match(l) for l in lines[n + 1:n + 40]) if m2]
+        nxt = following[0].group(1 if following[0].re is _OP else 2) if following else None
         new, why = None, None
         try:
             value = int(arg, 0)
@@ -243,7 +307,12 @@ def relocate(text: str, mv: Mover):
                 problems += 1
         elif CLASS.get(op) in ("static", "global") or (op in CONST_OPS and value >= MIN_CONST and value < DATA_PAGE):
             cls = CLASS[op]
-            new, why = mv.vote(cls, value)
+            ctx = tuple(context_token(f.group(2), f.group(4).strip().split(",")[0].strip())
+                        if f.re is _INS else context_token(f.group(1))
+                        for f in following[:CONTEXT])
+            hint = _NEAR.search(comment)
+            near = tuple(t.strip() for t in hint.group(1).split(",")) if hint else ()
+            new, why = mv.vote(cls, value, ctx if len(ctx) == CONTEXT else (), near)
             if new is None and not why.startswith("not used"):
                 problems += 1
             elif new is None:
