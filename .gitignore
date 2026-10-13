@@ -20,5 +20,6 @@ enhanced-scripts/
 # Disassembly cache of the page victim finder, rebuilt on demand.
 scrpatches/scrasm/customfuncs/page/victims/.cache/
 
-# Disassembly cache of relocate.py, rebuilt on demand.
+# Disassembly caches (crossbuild.py, relocate.py), rebuilt on demand.
 scrpatches/scrasm/customfuncs/page/.cache/
+scrpatches/scrasm/.cache/

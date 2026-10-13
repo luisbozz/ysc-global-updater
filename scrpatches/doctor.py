@@ -136,7 +136,9 @@ def safe_disassemble(data: bytes, at: int, span: int) -> list:
     for cut in range(span, 1, -1):
         try:
             return disassemble(data[at:at + cut])
-        except DecodeError:
+        except (DecodeError, IndexError, ValueError):
+            # A cut inside a SWITCH or ENTER can index past the slice instead of
+            # raising DecodeError.
             continue
     return []
 
@@ -165,9 +167,15 @@ def instructions_for(old: bytes, at: int, nbytes: int) -> list:
     return out
 
 
-def candidates(old: bytes, at: int, pattern: str) -> list[str]:
+# Candidates tried per pattern. Every subset of the instructions is a candidate, so a
+# long pattern (precise templates: 20+ instructions) has millions; building them all
+# first is what made the doctor hang.
+MAX_CANDIDATES = 40
+
+
+def candidates(old: bytes, at: int, pattern: str):
     """Patterns built by wildcarding the operands of some subset of the spanned
-    instructions, fewest wildcards first.
+    instructions, fewest wildcards first. A generator: callers take what they need.
 
     Only the operands move; the opcode bytes are what makes the pattern mean
     anything, so they are never touched. Instructions the original pattern
@@ -175,7 +183,7 @@ def candidates(old: bytes, at: int, pattern: str) -> list[str]:
     toks = tokens(pattern)
     ins = instructions_for(old, at, len(toks))
     if not ins:
-        return []
+        return
 
     already = set()
     for idx, i in enumerate(ins):
@@ -189,7 +197,7 @@ def candidates(old: bytes, at: int, pattern: str) -> list[str]:
         key=lambda idx: (is_volatile(ins[idx].name) is None, idx),
     )
 
-    seen, out = set(), []
+    seen = set()
     for size in range(0, len(ranked) + 1):
         for combo in itertools.combinations(ranked, size):
             mask = already | set(combo)
@@ -204,8 +212,7 @@ def candidates(old: bytes, at: int, pattern: str) -> list[str]:
             cand = " ".join(built)
             if cand not in seen:
                 seen.add(cand)
-                out.append(cand)
-    return out
+                yield cand
 
 
 def _string_pushes(code: bytes, ins: list, at: int, ysc) -> list:
@@ -391,7 +398,7 @@ def propose(p: dict, old_build: str, new_build: str) -> dict:
 
     # 1. operand shift: a candidate that still hits the very same old site
     if not is_healthy(status):
-        for cand in candidates(old, at, pattern)[:40]:
+        for cand in itertools.islice(candidates(old, at, pattern), MAX_CANDIDATES):
             cold, cnew = hits(old, cand), hits(new, cand)
             if classify(len(cold), len(cnew)) == "OK" and cold == [at]:
                 if tokens(cand) != tokens(pattern):
@@ -480,7 +487,7 @@ def render(p: dict, old_build: str, new_build: str, width: int = 74) -> None:
     print(f"\n  {c('Kandidaten', 'bold')}")
     found = False
     impostors = []
-    for cand in candidates(old, at, pattern)[:40]:
+    for cand in itertools.islice(candidates(old, at, pattern), MAX_CANDIDATES):
         cold, cnew = hits(old, cand), hits(new, cand)
         if classify(len(cold), len(cnew)) != "OK":
             continue
@@ -556,7 +563,7 @@ def render(p: dict, old_build: str, new_build: str, width: int = 74) -> None:
                 vt = tokens(vp)
                 print(f"    bricht ab {c(vt[n] if n < len(vt) else '?', 'red', 'bold')}"
                       f"   {c(f'(Praefix: alt {pho} / neu {phn})', 'grey')}")
-            for cand in candidates(old, vat, vp)[:40]:
+            for cand in itertools.islice(candidates(old, vat, vp), MAX_CANDIDATES):
                 co, cn = len(hits(old, cand)), len(hits(new, cand))
                 if classify(co, cn) == "OK":
                     print(f"    {c(OK_MARK, 'green', 'bold')} {hexdump_pattern(cand)}"

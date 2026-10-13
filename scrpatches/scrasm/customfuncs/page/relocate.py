@@ -23,149 +23,27 @@ from __future__ import annotations
 
 import argparse
 import collections
-import difflib
-import pickle
 import re
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2]))
-from scrasm.yscfull import YscFull  # noqa: E402
-from scrasm.natives import NativeResolver  # noqa: E402
-from scrasm.funcsig import FunctionIndex, build_address_map  # noqa: E402
+from scrasm.crossbuild import (  # noqa: E402
+    CLASS, CONST_OPS, Pair, Script, load, operand_value)
 
-DISASM = HERE.parents[2] / "disasm"
-CACHE = HERE / ".cache"
 # The payload's variables live in its own data page (string page 63), pushed as 0xFC000 + n.
 DATA_PAGE = 0xFC000
-
-CONST_OPS = {"PUSH_CONST_U8", "PUSH_CONST_S16", "PUSH_CONST_U24", "PUSH_CONST_U32"}
-STATIC_OPS = {"STATIC_U8", "STATIC_U8_LOAD", "STATIC_U8_STORE",
-              "STATIC_U16", "STATIC_U16_LOAD", "STATIC_U16_STORE",
-              "STATIC_U24", "STATIC_U24_LOAD", "STATIC_U24_STORE"}
-GLOBAL_OPS = {"GLOBAL_U16", "GLOBAL_U16_LOAD", "GLOBAL_U16_STORE",
-              "GLOBAL_U24", "GLOBAL_U24_LOAD", "GLOBAL_U24_STORE"}
-CLASS = {**{n: "const" for n in CONST_OPS}, **{n: "static" for n in STATIC_OPS},
-         **{n: "global" for n in GLOBAL_OPS}}
 # Witness votes are only taken for constants big enough to mean something.
 MIN_CONST = 100
 
 
-def operand_value(ins) -> int | None:
-    n = ins.name
-    if n in ("PUSH_CONST_U8",) or n.startswith("STATIC_U8"):
-        return ins.u8
-    if n == "PUSH_CONST_S16":
-        return ins.s16
-    if n.endswith(("U16", "U16_LOAD", "U16_STORE")):
-        return ins.u16
-    if n.endswith(("U24", "U24_LOAD", "U24_STORE")):
-        return ins.u24
-    if n == "PUSH_CONST_U32":
-        return int.from_bytes(ins.operands, "little")
-    return None
-
-
-@dataclass
-class Script:
-    build: str
-    name: str
-    full: YscFull
-    index: FunctionIndex
-    func_of: list  # instruction index -> Function index in index.functions
-    uses: dict = field(default_factory=dict)  # (class, value) -> [instruction index]
-
-    def strings(self) -> bytes:
-        return self.full.strings()
-
-    def string_at(self, off: int) -> str | None:
-        s = self.full.strings()
-        if not 0 <= off < len(s):
-            return None
-        end = s.find(b"\0", off)
-        return s[off:end if end >= 0 else len(s)].decode("latin-1")
-
-
-def load(build: str, script: str) -> Script:
-    path = DISASM / build / f"{script}.ysc.full"
-    st = path.stat()
-    key = CACHE / f"reloc-{build}-{script}-{st.st_size}-{int(st.st_mtime)}.pickle"
-    full = YscFull.parse(path)
-    if key.is_file():
-        index, func_of, uses = pickle.loads(key.read_bytes())
-        index.resolver = NativeResolver.from_full(full)
-        return Script(build, script, full, index, func_of, uses)
-    index = FunctionIndex.build(full.code, NativeResolver.from_full(full))
-    func_of = [0] * len(index.instructions)
-    for k, f in enumerate(index.functions):
-        for i in range(f.start_index, f.end_index + 1):
-            func_of[i] = k
-    uses = collections.defaultdict(list)
-    for i, ins in enumerate(index.instructions):
-        cls = CLASS.get(ins.name)
-        if cls:
-            v = operand_value(ins)
-            if v is not None:
-                uses[(cls, v)].append(i)
-    uses = dict(uses)
-    CACHE.mkdir(exist_ok=True)
-    resolver, index.resolver = index.resolver, None
-    key.write_bytes(pickle.dumps((index, func_of, uses)))
-    index.resolver = resolver
-    return Script(build, script, full, index, func_of, uses)
-
-
-class Mover:
+class Mover(Pair):
     def __init__(self, a: Script, b: Script, ini_from=None, ini_to=None):
-        self.a, self.b = a, b
-        self.amap, self.tier = build_address_map(a.index, b.index)
+        super().__init__(a, b)
         self.ini_from, self.ini_to = ini_from or {}, ini_to or {}
-        self._align = {}
-
-    # -- functions ------------------------------------------------------------------
-    def call(self, addr: int):
-        if addr in self.amap:
-            return self.amap[addr], self.tier[addr]
-        return None, "no match"
-
-    # -- strings --------------------------------------------------------------------
-    def string(self, off: int):
-        text = self.a.string_at(off)
-        if text is None or not text:
-            return None, "no string"
-        s = self.b.strings()
-        needle = b"\0" + text.encode("latin-1") + b"\0"
-        hits = []
-        if s.startswith(needle[1:]):
-            hits.append(0)
-        start = 0
-        while True:
-            i = s.find(needle, start)
-            if i < 0:
-                break
-            hits.append(i + 1)
-            start = i + 1
-        if len(hits) == 1:
-            return hits[0], f'"{text}"'
-        return None, f'"{text}" found {len(hits)} times'
 
     # -- votes from Rockstar's code ---------------------------------------------------
-    def _aligned(self, fa: int, fb: int) -> dict:
-        key = (fa, fb)
-        if key not in self._align:
-            ia, ib = self.a.index, self.b.index
-            A, B = ia.functions[fa], ib.functions[fb]
-            na = [ia.instructions[i].name for i in range(A.start_index, A.end_index + 1)]
-            nb = [ib.instructions[i].name for i in range(B.start_index, B.end_index + 1)]
-            m = {}
-            for blk in difflib.SequenceMatcher(None, na, nb, autojunk=False).get_matching_blocks():
-                for k in range(blk.size):
-                    m[A.start_index + blk.a + k] = B.start_index + blk.b + k
-            self._align[key] = m
-        return self._align[key]
-
     def vote(self, cls: str, value: int, context: tuple = (), near: tuple = (), limit: int = 40):
         """The other build's operand at the places Rockstar's code uses this one.
 
@@ -186,19 +64,16 @@ class Mover:
             same = [i for i in sites if self._context(self.a.index, i, len(context)) == context]
             if same:
                 sites = same
-        ia, ib = self.a.index, self.b.index
-        start_to_k = {f.start_offset: k for k, f in enumerate(ib.functions)}
+        ib = self.b.index
         votes = collections.Counter()
         tried = 0
         for i in sites:
             if tried >= limit:
                 break
-            fa = self.a.func_of[i]
-            new_start = self.amap.get(ia.functions[fa].start_offset)
-            if new_start is None:
+            j, how = self.counterpart(i)
+            if j is None and how.startswith("Funktion"):
                 continue
             tried += 1
-            j = self._aligned(fa, start_to_k[new_start]).get(i)
             if j is None:
                 continue
             ins = ib.instructions[j]
@@ -227,14 +102,8 @@ class Mover:
         return " ".join(f"next to {tok}: {next(iter(c))}" for tok, c in clean[:3]) or "no clear pattern"
 
     def _answer(self, i: int):
-        ia, ib = self.a.index, self.b.index
-        fa = self.a.func_of[i]
-        new_start = self.amap.get(ia.functions[fa].start_offset)
-        if new_start is None:
-            return None
-        k = next((k for k, f in enumerate(ib.functions) if f.start_offset == new_start), None)
-        j = self._aligned(fa, k).get(i)
-        return None if j is None else operand_value(ib.instructions[j])
+        j, _ = self.counterpart(i)
+        return None if j is None else operand_value(self.b.index.instructions[j])
 
     @staticmethod
     def _context(index, i: int, n: int) -> tuple:
