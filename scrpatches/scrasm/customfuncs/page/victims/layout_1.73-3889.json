@@ -1,0 +1,68 @@
+{
+ "fm_lts_creator": {
+  "func": 1103,
+  "start": 603338,
+  "end": 637400,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 606208,
+  "code": 622592,
+  "code_room": 14296,
+  "strings": 636888
+ },
+ "fm_capture_creator": {
+  "func": 1064,
+  "start": 594804,
+  "end": 628867,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 606208,
+  "code": 594812,
+  "code_room": 10884,
+  "strings": 605696
+ },
+ "fm_deathmatch_creator": {
+  "func": 913,
+  "start": 821455,
+  "end": 855518,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 835584,
+  "code": 821463,
+  "code_room": 13609,
+  "strings": 835072
+ },
+ "fm_survival_creator": {
+  "func": 1405,
+  "start": 678845,
+  "end": 712907,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 688128,
+  "code": 678853,
+  "code_room": 8763,
+  "strings": 687616
+ },
+ "fm_race_creator": {
+  "func": 594,
+  "start": 420917,
+  "end": 454980,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 425984,
+  "code": 442368,
+  "code_room": 12096,
+  "strings": 454464
+ },
+ "public_mission_creator": {
+  "func": 2409,
+  "start": 1031387,
+  "end": 1065454,
+  "pattern": "2D 04 07 00 00 38 02 65 67 5F A9 AC",
+  "stub": "2D 04 07 00 00 2E 04 00",
+  "data": 1032192,
+  "code": 1048576,
+  "code_room": 15872,
+  "strings": 1064448
+ }
+}

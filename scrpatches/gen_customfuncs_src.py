@@ -69,7 +69,8 @@ def main() -> int:
         base = anchors[0]
         raw = parse_hex(b)
         ysa = to_ysa(raw, base=base, resolver=resolver,
-                     function_labels=True, comments=True)
+                     function_labels=True, comments=True,
+                     string_at=full.string_at)
         # verify the source re-assembles to the exact original bytes
         back = assemble_text(ysa, base=base, natives=resolver.index_of_name())
         if back != raw:

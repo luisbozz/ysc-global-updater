@@ -144,6 +144,15 @@ def main() -> int:
                               f"({len(rep.offsets_missing)}):")
                 for op, o in sorted(set(rep.offsets_missing)):
                     report.append(f"        {op} {o}  -- payload would keep the old layout")
+            if rep.strings_updated:
+                report.append(f"    strings moved ({len(rep.strings_updated)}):")
+                for text, o, n in sorted(set(rep.strings_updated)):
+                    report.append(f"        {text!r}: 0x{o:X} -> 0x{n:X}")
+            if rep.strings_missing:
+                report.append("    !! strings absent or ambiguous in the new build: "
+                              + ", ".join(f"{text!r}@0x{o:X}"
+                                          for text, o in sorted(set(rep.strings_missing),
+                                                                key=lambda x: x[1])))
             if rep.stride_updated:
                 report.append(f"    embedded strides updated ({len(rep.stride_updated)}):")
                 for g, io, o, n in sorted(set(rep.stride_updated)):

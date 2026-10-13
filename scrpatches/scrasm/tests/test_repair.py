@@ -116,6 +116,22 @@ class RepairTest(unittest.TestCase):
                     self.assertEqual(a.u16, self.ctx.new_strides[key],
                                      "repaired stride does not match new script")
 
+    def test_strings_keep_their_text(self):
+        # the menu rows push string-table offsets; the offset moves between
+        # builds, the label it names must not
+        old_ins = disassemble(self.raw)
+        new_ins = disassemble(self.new_bytes)
+        pushes = [(a, b) for k, (a, b) in enumerate(zip(old_ins, new_ins))
+                  if k + 1 < len(old_ins) and old_ins[k + 1].name == "STRING"]
+        self.assertGreater(len(pushes), 0, "payload has no string references to check")
+        self.assertEqual(self.rep.strings_missing, [])
+        for a, b in pushes:
+            self.assertEqual(
+                self.ctx.old_full.string_at(int.from_bytes(a.operands, "little")),
+                self.ctx.new_full.string_at(int.from_bytes(b.operands, "little")),
+                "a repaired string push names a different label",
+            )
+
     def test_fully_repaired(self):
         self.assertTrue(self.rep.ok, f"payload still needs review: {self.rep.needs_review}")
 

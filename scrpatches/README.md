@@ -306,6 +306,14 @@ fingerprinting (strict, positional, loose). Output:
 Read the report. Anything under `!! external calls UNRESOLVED`, `!! natives
 missing` or `!! embedded strides needing review` needs a human before shipping.
 
+A patch outside the payload can call into it. `show hidden placement
+categories` (LTS, Capture) replaces the end of the placement menu builder with
+a call to the payload's menu function, which adds the Mission Creator rows the
+mode leaves out (actors, objects, locations, fixtures). The call target differs
+per build, so the hook reads it through `values` from a marker the payload
+carries (`PUSH_CONST_U32 0x584D4E55 ; CALL`). The health check therefore counts
+`values` hits in the script's injected payload as well as in its bytecode.
+
 The payloads also exist as readable assembly under
 [`scrasm/customfuncs/src/*.ysa`](scrasm/customfuncs/src/) — regenerate with
 `python3 gen_customfuncs_src.py`, which round-trip verifies that the source

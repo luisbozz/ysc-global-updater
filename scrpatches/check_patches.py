@@ -132,9 +132,28 @@ def stale_markers(patches: list, old_build: str, new_build: str) -> list:
     return out
 
 
+def _injected(patches: list) -> dict:
+    """``{script: payload bytes}`` der injizierten customfuncs.
+
+    Im Spiel steht der Payload im Script, sobald er geschrieben ist. Ein
+    ``values``-Subpattern darf deshalb dort treffen -- der Menue-Hook liest so die
+    Adresse seiner Payload-Funktion. Die Bytes stammen aus dem Patch-File, also aus
+    dem Build, fuer den der Payload geschrieben ist; ein Subpattern darauf darf nur
+    Opcodes und Konstanten enthalten, die sich zwischen Builds nicht aendern.
+    """
+    out = {}
+    for p in patches:
+        b = p.get("bytes_to_patch", "")
+        if (p.get("category") == "customfuncs" and "{" not in b
+                and b.replace(" ", "").upper().startswith("2D")):
+            out[p["script_name"]] = bytes.fromhex(b.replace(" ", ""))
+    return out
+
+
 def check(patches: list, old_build: str, new_build: str) -> list:
     """Pro Patch (und Subpattern) alt/neu-Treffer zaehlen + klassifizieren."""
     results = []
+    injected = _injected(patches)
     for p in patches:
         script = p.get("script_name")
         pat = p.get("pattern")
@@ -155,7 +174,9 @@ def check(patches: list, old_build: str, new_build: str) -> list:
         }
         for v in p.get("values") or []:
             vp = v.get("pattern", "")
-            vo, vn = _count(old, vp), _count(new, vp)
+            payload = injected.get(script, b"")
+            vo = _count(old, vp) + _count(payload, vp)
+            vn = _count(new, vp) + _count(payload, vp)
             entry["values"].append({
                 "id": v.get("id"), "old_hits": len(vo), "new_hits": len(vn),
                 "status": classify(len(vo), len(vn), v.get("derived_for"), new_build),
