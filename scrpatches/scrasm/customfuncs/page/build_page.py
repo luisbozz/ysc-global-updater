@@ -44,6 +44,10 @@ HOOKS = {
     ("fm_survival_creator", "run patched loop func without args"): "dl_hook",
     ("fm_deathmatch_creator", "run patched loop func without args"): "dl_hook",
     ("public_mission_creator", "run custom funcs from the main loop"): "hook",
+    ("fm_lts_creator", "teleport in test"): "tw_wrap",
+    ("fm_capture_creator", "teleport in test"): "tw_wrap",
+    ("fm_survival_creator", "teleport in test"): "tw_wrap",
+    ("fm_deathmatch_creator", "teleport in test"): "tw_wrap",
     ("fm_lts_creator", "zone labels"): "zl_wrap",
     ("fm_capture_creator", "zone labels"): "zl_wrap",
     ("fm_deathmatch_creator", "zone labels"): "zl_wrap",
@@ -122,6 +126,9 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
             if probe:
                 asm += "\n" + datafile.gen()
             asm += "\n" + teleport.gen()
+            test = teleport.test_site(full.code) if s in teleport.TEST_SCRIPTS else None
+            if test:
+                asm += "\n" + teleport.gen_test(test)
             try:
                 zone = zonelabel.site(full)
             except ValueError as e:
