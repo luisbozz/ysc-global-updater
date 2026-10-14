@@ -20,6 +20,7 @@ from scrasm.disasm import disassemble
 import datafile
 import drawer
 import teleport
+import mover
 import zonelabel
 
 PAGE = 0x4000
@@ -122,10 +123,11 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
                 keep = loop_hook_keep(full.code)
             probe = s in datafile.SCRIPTS
             asm = src + "\n" + drawer.gen(None if s in OWN_HOOK else base, keep,
-                                          ("df_main", "tp_main") if probe else ("tp_main",))
+                                          ("df_main", "tp_main", "mv_main") if probe else ("tp_main", "mv_main"))
             if probe:
                 asm += "\n" + datafile.gen()
             asm += "\n" + teleport.gen()
+            asm += "\n" + mover.gen()
             test = teleport.test_site(full.code) if s in teleport.TEST_SCRIPTS else None
             if test:
                 asm += "\n" + teleport.gen_test(test)

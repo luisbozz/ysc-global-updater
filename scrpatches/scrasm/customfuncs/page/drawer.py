@@ -6,7 +6,7 @@ it, LOAD reads one 8 byte slot (ints and floats in the low 4 bytes).
 
 Data page layout (byte offsets):
   0x000  "STRING\\0"      text label for BEGIN_TEXT_COMMAND_DISPLAY_TEXT
-  0x008  count            entries to draw (capped at 48)
+  0x008  count            entries to draw (capped at 47)
   0x010  heartbeat        +1 every frame the drawer runs
   0x018  variables        what the customfuncs share with Xenvious, one 8 byte slot each, in
                           the order of the custom globals the Legacy payloads use
@@ -18,7 +18,8 @@ Data page layout (byte offsets):
            0x090  garage slot, 0x098 garage result
            0x0B0  garage list (100 models)
            0x3D8  garage vehicle (the creator's personal vehicle struct, up to 0x7FF)
-  0x800  entries          0x100 bytes each, slot k at +k*8 (48 of them)
+  0x800  entries          0x100 bytes each, slot k at +k*8 (47 of them)
+  0x3700 entity mover      state, kind, model, old/new position, rotation (mover.py)
   0x3800 zone type names  count, then 30 entries of 0x40: +0 type, +8 name (zonelabel.py)
   0x3F88 teleport         state, x, y, z (teleport.py)
   0x3FC8 datafile probe   state, root, probe, array, keys (datafile.py)
@@ -40,7 +41,7 @@ COUNT = DATA + 0x08
 BEAT = DATA + 0x10
 ENTRIES = DATA + 0x800
 STRIDE = 0x100
-MAX = 48
+MAX = 47           # the 48th entry's space holds the entity mover (mover.py)
 COPY = 25          # slots 0..24 go into the frame; STORE_N takes at most 25
 TEXT = 25 * 8
 

@@ -32,7 +32,14 @@ Files:
   every frame; on request it moves the player, or the vehicle the player sits in, with
   `SET_ENTITY_COORDS_NO_OFFSET`, like YimMenuV2. Writing the position into memory does not hold in
   a test, where the physics run.
-- `build_page.py`: assembles source + drawer + zone label + datafile probe + teleport at each `page_base`, checks every CALL into
+- `mover.py`: generates mv_main for every creator. dl_main calls it every frame; on request it applies
+  a new position and rotation or heading to one placed entity, by the handle Xenvious reads from the
+  creator's handle array (`[ENTITYHANDLES]`), with the natives the creator places it with; for a team
+  start point it removes the decal, which the creator adds again. So Xenvious shows a changed pose
+  without a rebuild (EntityMover). Mode 4 syncs a block of props for the Advanced Placement preview:
+  missing entities are created into the creator's handle array, the rest moved, the ones after the
+  block deleted. It uses the space of the 48th drawer entry.
+- `build_page.py`: assembles source + drawer + zone label + datafile probe + teleport + mover at each `page_base`, checks every CALL into
   the page (and on Legacy that the payload ends before the string page array), and points the
   patches that CALL into the page (`HOOKS`) at their labels. Without `--write` it only reports;
   `--edition` picks the edition, `--target` the scrpatches.json (default: Xenvious' one).
