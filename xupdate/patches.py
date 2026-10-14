@@ -93,10 +93,11 @@ def update(patches: list, old_build: str, new_build: str, file_tag: str,
     health = {}
     for r, p in zip(_check_each(patches, old_build, new_build, check), patches):
         health[id(p)] = r
-    out, items = [], []
-    for n, p in enumerate(patches):
-        q = copy.deepcopy(p)
-        out.append(q)
+    out, items = [copy.deepcopy(p) for p in patches], []
+    # By script, so carry and the snippets need one script pair in memory at a time.
+    order = sorted(range(len(patches)), key=lambda k: patches[k].get("script_name") or "")
+    for n in order:
+        p = patches[n]
         if not p.get("pattern") or is_page(p) or p.get("enabled") is False:
             continue
         r = health.get(id(p))
@@ -152,6 +153,7 @@ def update(patches: list, old_build: str, new_build: str, file_tag: str,
                 note="; ".join(c.notes) + ("; Doctor: Zeitlimit" if prop is None else
                                           "; Doctor: " + prop.get("reason", "")),
                 choices=["abschalten"]))
+    carry._PAIRS.clear()  # the next step loads its own pairs
     return out, items
 
 

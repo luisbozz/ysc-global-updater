@@ -31,6 +31,7 @@ PLACEHOLDER = re.compile(r"\{\{\s*\w+\s*\}\}")
 def pair(script: str, old_build: str, new_build: str) -> Pair:
     key = (script, old_build, new_build)
     if key not in _PAIRS:
+        _PAIRS.clear()  # one pair at a time: each script is hundreds of MB
         _PAIRS[key] = Pair(load(old_build, script), load(new_build, script))
     return _PAIRS[key]
 

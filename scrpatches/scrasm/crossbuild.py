@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import bisect
 import collections
+import gc
 import difflib
 import pickle
 from dataclasses import dataclass, field
@@ -75,10 +76,28 @@ class Script:
         return k if k >= 0 else None
 
 
+# A loaded script holds about 400 MB of objects; keep only the last two (one build pair), so a
+# run over all creators does not hold every script at once.
+_RECENT: "collections.OrderedDict[tuple[str, str], Script]" = collections.OrderedDict()
+
+
 def load(build: str, script: str) -> Script:
+    got = _RECENT.get((build, script))
+    if got is not None:
+        _RECENT.move_to_end((build, script))
+        return got
+    while len(_RECENT) >= 2:
+        _RECENT.popitem(last=False)
+    gc.collect()
+    s = _load(build, script)
+    _RECENT[(build, script)] = s
+    return s
+
+
+def _load(build: str, script: str) -> Script:
     path = DISASM / build / f"{script}.ysc.full"
     st = path.stat()
-    key = CACHE / f"xb-{build}-{script}-{st.st_size}-{int(st.st_mtime)}.pickle"
+    key = CACHE / f"xb2-{build}-{script}-{st.st_size}-{int(st.st_mtime)}.pickle"
     full = YscFull.parse(path)
     if key.is_file():
         index, func_of, uses = pickle.loads(key.read_bytes())
