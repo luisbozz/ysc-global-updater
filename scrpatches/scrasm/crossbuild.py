@@ -145,8 +145,25 @@ class Pair:
             return None, "no function starts there"
         fb, how = self.function(fa)
         if fb is None:
-            return None, "no match"
+            return self.via_callers(addr)
         return self.b.index.functions[fb].start_offset, how
+
+    def via_callers(self, addr: int):
+        """A function Rockstar rewrote is still called from the same places: when every call
+        of it maps to a call of one function in the new build, that is the one."""
+        ia, ib = self.a.index, self.b.index
+        targets, n = set(), 0
+        for i, ins in enumerate(ia.instructions):
+            if ins.name != "CALL" or ins.u24 != addr:
+                continue
+            j, _ = self.counterpart(i)
+            if j is None or ib.instructions[j].name != "CALL":
+                return None, "no match"
+            targets.add(ib.instructions[j].u24)
+            n += 1
+        if n and len(targets) == 1:
+            return targets.pop(), f"{n} Aufruf(e) zeigen im neuen Build auf diese Funktion"
+        return None, "no match"
 
     def string(self, off: int):
         """The same text in the new build's string table: (offset, how) or (None, why)."""
