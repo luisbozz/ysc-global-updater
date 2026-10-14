@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from xupdate import offsets, paths  # noqa: E402
+from xupdate import offsets, paths, space  # noqa: E402
 from xupdate.common import Item  # noqa: E402
 
 
@@ -96,6 +96,36 @@ class PatchAnswers(unittest.TestCase):
         self.assertEqual((ps[0]["pattern"], ps[0]["offset"], ps[0]["bytes_to_patch"]), ("B", 2, "11"))
         self.assertIs(ps[1]["enabled"], False)
         self.assertEqual(ps[2]["bytes_to_patch"], "22 33")
+
+
+class Space(unittest.TestCase):
+    # Shipped flags of Enhanced 1.73-1158 and the flags all six creators loaded with in game.
+    LOADED = {0x00C40012: 0x00006884, 0x00F60012: 0x00008084, 0x01BC0023: 0x0000C084,
+              0x03C60012: 0x00006884, 0x00E60012: 0x00007884}
+
+    def test_layout_is_the_dump_size(self):
+        self.assertEqual(sum(space.layout(0x00C40012)), 0x390000)   # fm_lts_creator.ysc.full
+        self.assertEqual(sum(space.layout(0x01BC0023)), 0x668000)   # fm_race_creator.ysc.full
+
+    def test_target_is_what_loaded_in_game(self):
+        for shipped, loaded in self.LOADED.items():
+            self.assertEqual(space.target(shipped), loaded, f"0x{shipped:08X}")
+            self.assertIsNone(space.check(shipped, loaded))
+
+    def test_check_rejects_what_failed_in_game(self):
+        # One more 0x8000 chunk: the page map overflows (DM crashed).
+        self.assertIn("page map", space.check(0x00F60012, 0x00F80012))
+        # Two chunks wholly behind the data: the load never finishes.
+        self.assertIn("wholly behind", space.check(0x00F60012, 0x00F40032))
+
+    def test_section_keeps_comments(self):
+        ini = ('[SCRIPTSPACE]\n; Shipped flags from enhanced-1.73-1158.\nfm_lts_creator = "00C40012, 00006884"\n'
+               '\n[SCRIPTVICTIM]\nfm_lts_creator = "1"\n')
+        out = space.set_section(ini, {"fm_lts_creator": "00C60012, 00006884"}, "enhanced-1.74-1200")
+        self.assertIn("; Shipped flags from enhanced-1.74-1200.", out)
+        self.assertIn('fm_lts_creator = "00C60012, 00006884"', out)
+        self.assertIn('[SCRIPTVICTIM]\nfm_lts_creator = "1"', out)
+        self.assertEqual(space.scripts_in(ini), ["fm_lts_creator"])
 
 
 if __name__ == "__main__":

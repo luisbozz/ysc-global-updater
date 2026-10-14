@@ -144,16 +144,17 @@ def update(edition: str, patches: list, old_build: str, new_build: str, ini_text
                 p["pattern"], p["offset"], p["bytes_to_patch"] = v["pattern"], 0, v["stub"]
         room = {s: (v["code"], v["strings"]) for s, v in vals.items()}
     else:
+        from . import space
+        vals, problems = space.values(new_build, space.scripts_in(ini_text))
+        ini_text = space.set_section(ini_text, vals, new_build)
+        for s, why in problems.items():
+            items.append(Item(id=f"space:{s}", kind="info", title=f"[SCRIPTSPACE] {s}",
+                              question=f"Nicht berechnet: {why}.",
+                              note="Der alte Wert bleibt; ScriptSpace.CheckLayout lehnt ihn im Spiel ab, "
+                                   "wenn er nicht passt, dann fehlen die Extra-Seiten."))
         for p in patches:
             if p.get("page"):
-                base = enhanced_base(new_build, p["script_name"])
-                if base != p["page_base"]:
-                    items.append(Item(
-                        id=f"space:{p['script_name']}", kind="info", title=f"[SCRIPTSPACE] {p['script_name']}",
-                        question=f"Der Code endet jetzt in einer anderen Seite: Payload 0x{p['page_base']:X} -> 0x{base:X}.",
-                        note="Die Ladeflags in [SCRIPTSPACE] passen eventuell nicht mehr; "
-                             "im Spiel prüfen (ScriptSpace.CheckLayout meldet es)."))
-                    p["page_base"] = base
+                p["page_base"] = enhanced_base(new_build, p["script_name"])
     return patches, ini_text, items
 
 

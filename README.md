@@ -114,7 +114,8 @@ python3 tools/extract_ysc.py --variant enhanced --build 1.73-1158 \
 
 Extracting a `.ysc` resource yields exactly the layout `scrasm.yscfull` parses:
 the RSC7 container header is gone, so `RSC7Offset == 0`, which is the shape a
-published `.full` has.
+published `.full` has. The page flags of each RPF entry go to `flags.json` next
+to the dumps; `xupdate` computes Xenvious' `[SCRIPTSPACE]` from them.
 
 **The released CodeWalker binaries do not work here.** Enhanced key derivation
 landed in the public source but not in any tagged build, and an older build

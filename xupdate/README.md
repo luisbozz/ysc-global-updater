@@ -23,6 +23,7 @@ The new build's scripts, in two forms:
 |---|---|---|---|
 | decompiled `.c` | `scripts/<build>/` | `./fetch_update.sh <build> <ref>` | `tools/extract_ysc.py`, then `tools/decompile_ysc.py` |
 | decrypted `.ysc.full` | `scrpatches/disasm/<build>/` | `./fetch_update.sh` (same call) | `tools/extract_ysc.py` (CodeWalker, from your game) |
+| page flags `flags.json` | `scrpatches/disasm/<build>/` | not needed | `tools/extract_ysc.py` (same call) |
 
 The old build (the label in Xenvious' `offsets.ini`) has to be there as well.
 Step 1 says what is missing and prints the commands.
@@ -34,7 +35,7 @@ Step 1 says what is missing and prints the commands.
 | 1 | scripts | checks the files above |
 | 2 | offsets | `tools/run_pipeline.py` migrates every key; each result is checked against the code around its use in both builds (same lines with numbers ignored). Agreement: done. Disagreement, or no result: review item. The `[i]` and `[n /*s*/]` of Xenvious' notation are kept (`paths.reshape`). |
 | 3 | patches | every patch is carried by its function, not its bytes (`scrpatches/carry.py`): the function is found by its fingerprint, aligned instruction by instruction, the pattern rebuilt at the same instruction, and operands the patch copied from the game's code (fields, CALL targets, strings) updated. Changed patches are review items. |
-| 4 | payloads | Legacy: the victim function is found again (`victims/layout.py`), giving `[SCRIPTVICTIM]`, the payload base and the stub patch. Enhanced: the payload goes to the first page behind the code. The `.ysa` sources are moved to the new build (`relocate.py`). |
+| 4 | payloads | Legacy: the victim function is found again (`victims/layout.py`), giving `[SCRIPTVICTIM]`, the payload base and the stub patch. Enhanced: `[SCRIPTSPACE]` is computed from the shipped page flags (`xupdate/space.py`: one 0x80000 chunk, then 0x40000 chunks to three pages past the data, checked like `ScriptSpace.CheckLayout`), the payload goes to the first page behind the code. The `.ysa` sources are moved to the new build (`relocate.py`). |
 | 5 | lists | `[OTHER]` prop lists, `race_vehicles.json` (with the ADLC vehicles), `mprops.json` |
 | 6 | review | the browser page (or `--terminal`) |
 | 7 | build | answers applied, payloads assembled, hooks pointed at the new labels |
