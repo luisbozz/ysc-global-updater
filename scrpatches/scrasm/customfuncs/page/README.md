@@ -24,7 +24,15 @@ Files:
 - `zonelabel.py`: generates zl_wrap/zl_label for the creators that draw zones (LTS, Capture, DM,
   Race): "(Zone n)  <type>" over each zone the game draws, in the zone's colour, fading with
   distance. The hook "zone labels" points the zone loop's draw CALL at zl_wrap.
-- `build_page.py`: assembles source + drawer + zone label at each `page_base`, checks every CALL into
+- `datafile.py`: generates df_main for the creators that load and save job files (LTS, Capture,
+  DM, Race, Survival). dl_main calls it every frame; on request it hands Xenvious
+  `DATAFILE_GET_FILE_DICT(0)` and a dict "xv" with one node of every type, so Xenvious' job file
+  export and import (JobDatafile) need no addresses from the game's exe.
+- `teleport.py`: generates tp_main for every creator. dl_main (and in the race test fn13) calls it
+  every frame; on request it moves the player, or the vehicle the player sits in, with
+  `SET_ENTITY_COORDS_NO_OFFSET`, like YimMenuV2. Writing the position into memory does not hold in
+  a test, where the physics run.
+- `build_page.py`: assembles source + drawer + zone label + datafile probe + teleport at each `page_base`, checks every CALL into
   the page (and on Legacy that the payload ends before the string page array), and points the
   patches that CALL into the page (`HOOKS`) at their labels. Without `--write` it only reports;
   `--edition` picks the edition, `--target` the scrpatches.json (default: Xenvious' one).

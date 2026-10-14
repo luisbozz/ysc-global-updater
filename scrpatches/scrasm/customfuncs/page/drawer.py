@@ -19,7 +19,9 @@ Data page layout (byte offsets):
            0x0B0  garage list (100 models)
            0x3D8  garage vehicle (the creator's personal vehicle struct, up to 0x7FF)
   0x800  entries          0x100 bytes each, slot k at +k*8 (48 of them)
-  0x3800 zone type names  count, then 31 entries of 0x40: +0 type, +8 name (zonelabel.py)
+  0x3800 zone type names  count, then 30 entries of 0x40: +0 type, +8 name (zonelabel.py)
+  0x3F88 teleport         state, x, y, z (teleport.py)
+  0x3FC8 datafile probe   state, root, probe, array, keys (datafile.py)
 
 Entry slots:
   0 kind     0 off, 1 prism, 2 marker, 3 text only
@@ -50,10 +52,10 @@ def L(k):          # frame local holding entry slot k (dl_entry: arg 0, then ret
 SX, SY = 28, 29    # screen coordinates
 
 
-def gen(fn0: int | None, keep: tuple[int, int, int] | None = None) -> str:
+def gen(fn0: int | None, keep: tuple[int, int, int] | None = None, calls: tuple[str, ...] = ()) -> str:
     """keep: (draw function, global, field) when the hook keeps the call it replaces (Legacy):
     dl_hook then takes that call's four arguments and makes it, as the script did, while
-    global.field is not 6."""
+    global.field is not 6. calls: functions dl_main calls first, every frame (datafile.py)."""
     o = []
     a = o.append
 
@@ -80,6 +82,8 @@ def gen(fn0: int | None, keep: tuple[int, int, int] | None = None) -> str:
     # ---- dl_main: heartbeat, then every entry ----
     a("dl_main:")
     a("  ENTER 0, 4")
+    for c in calls:
+        a(f"  CALL {c}")
     a(f"  PUSH_CONST_U24 0x{BEAT:X}")
     a("  STRING")
     a("  LOAD")

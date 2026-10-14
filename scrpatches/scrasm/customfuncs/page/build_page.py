@@ -17,7 +17,9 @@ from scrasm.yscfull import YscFull
 from scrasm.natives import NativeResolver
 from scrasm.asm import assemble_text, _tokenize, _size
 from scrasm.disasm import disassemble
+import datafile
 import drawer
+import teleport
 import zonelabel
 
 PAGE = 0x4000
@@ -114,7 +116,12 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
             keep = None
             if edition == "legacy" and s not in OWN_HOOK:
                 keep = loop_hook_keep(full.code)
-            asm = src + "\n" + drawer.gen(None if s in OWN_HOOK else base, keep)
+            probe = s in datafile.SCRIPTS
+            asm = src + "\n" + drawer.gen(None if s in OWN_HOOK else base, keep,
+                                          ("df_main", "tp_main") if probe else ("tp_main",))
+            if probe:
+                asm += "\n" + datafile.gen()
+            asm += "\n" + teleport.gen()
             try:
                 zone = zonelabel.site(full)
             except ValueError as e:
