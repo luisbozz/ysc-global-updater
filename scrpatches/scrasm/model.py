@@ -24,7 +24,7 @@ def _u32(b: bytes, i: int = 0) -> int:
     return b[i] | (b[i + 1] << 8) | (b[i + 2] << 16) | (b[i + 3] << 24)
 
 
-@dataclass
+@dataclass(slots=True)
 class Instruction:
     """A single decoded instruction.
 

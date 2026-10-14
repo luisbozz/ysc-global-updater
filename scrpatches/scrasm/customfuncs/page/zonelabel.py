@@ -15,9 +15,11 @@ behind the pause menu, so the creator menu (order 4) covers it, and it fades out
 """
 import re
 
-HOOK = "61 ? ? ? 64 ? ? ? 3F 34 C2 7A 7A 7A 7A 7A 7A 28 00 00 80 BF 38 ? 71 38 ? 5D ? ? ?"
+# &Global_N.f_M[i /*stride*/], six PUSH_CONST_F0, -1.0f, ..., CALL draw. The zone stride (ARRAY_U8
+# operand) is read from the site: it grows when Rockstar adds zone fields.
+HOOK = "61 ? ? ? 64 ? ? ? 3F 34 ? 7A 7A 7A 7A 7A 7A 28 00 00 80 BF 38 ? 71 38 ? 5D ? ? ?"
 HOOK_CALL = 27          # offset of the CALL in HOOK
-ZONE_STRIDE = 194
+HOOK_STRIDE = 10        # offset of the ARRAY_U8 operand in HOOK
 NEAR, FAR = 60.0, 90.0  # metres: full alpha up to NEAR, gone at FAR
 SCALE = 0.3
 STRINGS = ("(Zone ", ")  ", "STRING")
@@ -38,13 +40,16 @@ def site(full) -> dict | None:
     hits = find(full.code, HOOK)
     if not hits:
         return None
-    assert len(hits) == 1, hits
+    if len(hits) != 1:
+        raise ValueError(f"zone loop found {len(hits)} times")
     at = hits[0]
     c = full.code
     glob = int.from_bytes(c[at + 1:at + 4], "little")
     field = int.from_bytes(c[at + 5:at + 8], "little")
+    stride = c[at + HOOK_STRIDE]
     draw = int.from_bytes(c[at + HOOK_CALL + 1:at + HOOK_CALL + 4], "little")
-    assert c[draw] == 0x2D and c[draw + 1] == 11, "draw function does not take 11 arguments"
+    if not (c[draw] == 0x2D and c[draw + 1] == 11):
+        raise ValueError("zone draw function does not take 11 arguments")
     # The draw function gets its colour from func(zone type, &r, &g, &b):
     # IOFFSET_U8_LOAD 11, LOCAL_U8 r, LOCAL_U8 g, LOCAL_U8 b, CALL colour.
     end = draw + 0x400
@@ -61,13 +66,15 @@ def site(full) -> dict | None:
                 and all(x.name == "LOCAL_U8" for x in a[1:4]) and a[4].name == "CALL"):
             colour = int.from_bytes(a[4].operands[:3], "little")
             break
-    assert colour is not None, "zone colour function not found"
+    if colour is None:
+        raise ValueError("zone colour function not found")
     strings = {}
     for t in STRINGS:
         o = full.string_offsets(t)
-        assert o, f"string {t!r} missing"
+        if not o:
+            raise ValueError(f"string {t!r} missing")
         strings[t] = o[0]
-    return dict(at=at, glob=glob, field=field, draw=draw, colour=colour, strings=strings)
+    return dict(at=at, glob=glob, field=field, stride=stride, draw=draw, colour=colour, strings=strings)
 
 
 DEBUG = False
@@ -204,9 +211,9 @@ def gen(s: dict) -> str:
     a(f"  GLOBAL_U24 {s['glob']}")
     a(f"  PUSH_CONST_U24 {s['field']}")
     a("  IOFFSET")
-    a(f"  ARRAY_U8 {ZONE_STRIDE}")
+    a(f"  ARRAY_U8 {s['stride']}")
     a("  ISUB")
-    a(f"  PUSH_CONST_S16 {ZONE_STRIDE * 8}")
+    a(f"  PUSH_CONST_S16 {s['stride'] * 8}")
     a("  IDIV")
     a(f"  LOCAL_U8_STORE {IDX}")
 

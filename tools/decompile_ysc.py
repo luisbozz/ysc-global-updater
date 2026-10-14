@@ -143,7 +143,7 @@ def main() -> int:
     for n, why in failed:
         print(f"  !! {n}: {why}")
     if done or skipped:
-        print(f"\nNext: python3 update_xenvious.py --new {args.build}")
+        print(f"\nNext: ./xupdate.sh {args.build}")
     return 1 if failed else 0
 
 

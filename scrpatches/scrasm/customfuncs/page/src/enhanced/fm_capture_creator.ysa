@@ -353,7 +353,7 @@ fn7:
   PUSH_CONST_0
   PUSH_CONST_0
   CALL 0x00859C
-  PUSH_CONST_U24 149
+  PUSH_CONST_U24 149                         ; ~IOFFSET 272  menu id, compared with the current menu
   PUSH_CONST_U8 15
   LOCAL_U8_LOAD 0
   IOFFSET_U8 15

@@ -1,11 +1,13 @@
 # YSC Global Updater
 
-Turns a fresh GTA V script dump into an up-to-date `offsets.ini`.
+Brings everything Xenvious needs per GTA build to a new build: `offsets.ini`, the
+script patches, the custom funcs payloads, the prop lists, the race creator's
+vehicles and the prop-menu originals.
 
-Every GTA update shifts the `Global_*` memory offsets: structs grow, fields get
-inserted, and the offsets in `offsets.ini` point at the wrong place. This tool
-compares the old and the new decompiled scripts and rewrites the file for you.
-Your original `offsets.ini` is never modified — output goes to `reports/`.
+Every GTA update shifts the `Global_*` memory offsets and the creator scripts'
+bytecode: structs grow, fields get inserted, functions move. This tool compares the
+old and the new scripts, carries every value over, and shows you the few it is not
+sure about, old code left and new code right.
 
 > Uses the prebuilt decompiled scripts published by
 > [calamity-inc](https://github.com/calamity-inc/GTA-V-Decompiled-Scripts).
@@ -20,48 +22,31 @@ Your original `offsets.ini` is never modified — output goes to `reports/`.
 
 ## The whole update
 
-One command runs the whole chain and asks before every step that writes
-something:
-
 ```bash
-python3 update_xenvious.py --new 1.74-4012                      # Legacy
-python3 update_xenvious.py --variant enhanced --new 1.74-1200   # Enhanced
-python3 update_xenvious.py --new 1.74-4012 --dry-run            # report only
+./xupdate.sh 1.74-4012              # Legacy
+./xupdate.sh enhanced-1.74-1200     # Enhanced
 ```
+
+It reads Xenvious (`/opt/xenvious`, `--xenvious` for another checkout), moves its
+data from the build named in its `offsets.ini` (`[BUILD] label`) to the new one,
+opens a review page in the browser for what needs a decision, and at the end writes
+into Xenvious and regenerates its build data. Interrupted, the same command
+continues where it stopped. The runbook: [`xupdate/README.md`](xupdate/README.md).
 
 ```text
- 1  Fetch the build       ./fetch_update.sh
- 2  Migrate offsets       tools/run_pipeline.py
- 3  Check/repair patterns scrpatches/update_patches.py
- 4  Repair payloads       scrpatches/repair_scrpatches.py
-                          (+ build_customfuncs.py --check: do the readable
-                             .ysa sources still describe what we ship?)
- 5  Deploy                Xenvious/OfflineData/<variant>/{offsets.ini,scrpatches.json}
-                          (+ [OTHER] prop model lists refreshed from the
-                             creator scripts: tools/extract_prop_lists.py)
- 6  Rebuild               reminder only — OfflineData is compiled into the .exe
+ 1  scripts    the new build's .c and .ysc.full (step 1 prints how to get them)
+ 2  offsets    tools/run_pipeline.py + a check of every value against the code around it
+ 3  patches    scrpatches/carry.py: each patch found again through its function
+ 4  payloads   victim function / extra page, customfuncs/page/relocate.py
+ 5  lists      [OTHER] prop lists, race_vehicles.json, mprops.json
+ 6  review     browser page (or --terminal)
+ 7  build      answers applied, payloads assembled
+ 8  deploy     Xenvious/OfflineData/<edition>/ + tools/builddata/gen.py there
 ```
 
-Each step first reports what it finds. A step whose output is already newer than
-its inputs is reported as up to date and is not offered again, so re-running the
-command after an interruption picks up where it left off. Step 5 refuses to run
-while any pattern is still broken.
-
-Rollback is git: `git checkout -- Xenvious/OfflineData` in the Xenvious
-checkout. The script writes no `.bak` files.
-
 The sections below document the individual tools, for when a step needs a
-closer look or a non-default argument. Scripts are stored per build under
-`scripts/<build>/`, so you compare versions by name.
-
-> Steps 3 and 4 belong to the **runtime bytecode patches** (`scrpatches.json` —
-> dev mode, cam fix, the injected custom functions). Separate problem, separate
-> toolchain, separate runbook: [`scrpatches/README.md`](scrpatches/README.md).
-> `fetch_update.sh` pulls the inputs for both.
-
-`--old` defaults to the previous build in `scripts/`. If your `offsets.ini` lags
-a version, pass `--old <build>` explicitly — a wrong guess shows up immediately
-as a very low "migrated" count.
+closer look. Scripts are stored per build under `scripts/<build>/`, so you
+compare versions by name.
 
 ## Legacy and Enhanced
 
@@ -129,7 +114,8 @@ python3 tools/extract_ysc.py --variant enhanced --build 1.73-1158 \
 
 Extracting a `.ysc` resource yields exactly the layout `scrasm.yscfull` parses:
 the RSC7 container header is gone, so `RSC7Offset == 0`, which is the shape a
-published `.full` has.
+published `.full` has. The page flags of each RPF entry go to `flags.json` next
+to the dumps; `xupdate` computes Xenvious' `[SCRIPTSPACE]` from them.
 
 **The released CodeWalker binaries do not work here.** Enhanced key derivation
 landed in the public source but not in any tagged build, and an older build
@@ -148,11 +134,10 @@ dotnet build CodeWalker-master/CodeWalker.Core/CodeWalker.Core.csproj -c Release
 with `wslpath`. OpenIV is no help: its command line only picks a game for the
 GUI, with no export at all.
 
-With the dumps in place, Enhanced runs the same chain as Legacy. Each variant
-keeps its own patch set (`data/scrpatches.json` and
-`data/scrpatches.enhanced.json`), because the patterns drift apart as soon as
-one build needs one re-derived, and the injected payloads are compiled per
-build and never match across one.
+With the dumps in place, Enhanced runs the same chain as Legacy. Each edition
+keeps its own patch set in Xenvious (`OfflineData/<edition>/scrpatches.json`),
+because the patterns drift apart as soon as one build needs one re-derived, and
+the injected payloads are compiled per build and never match across one.
 
 ### What does not work for Enhanced
 
@@ -212,47 +197,21 @@ Optional:
 
 ## Step 3 — Deploy to Xenvious
 
-`reports/offsets.migrated.ini` is not shipped as-is. It holds only this repo's
-script-derived offsets, while the two production files are bigger multi-section
-inis (`[AOB]`, `[SESSION]`, `[VEHICLES]`, …, `[OFFSETS]`).
+`xupdate` deploys: it writes the migrated values into Xenvious' own
+`offsets.ini` (the source of the migration, so no key is lost and its notation
+stays), sets `[BUILD] label`, and runs `tools/builddata/gen.py` in Xenvious, which
+compiles the ini and the patches into `Xenvious/Generated/*.g.cs`.
 
-| Target | Path | How it reaches users |
-|---|---|---|
-| App | `Xenvious/Xenvious/OfflineData/offsets.ini` | compiled into the `.exe`; needs an app rebuild |
-| Backend (legacy) | `xenvious_ctr/confFiles/web/resources/offsets.ini` | plaintext on disk; the backend AES-encrypts it on serve |
-
-Since the offline-mode branch the app carries its own data and the backend is no
-longer the source of truth. `update_xenvious.py` writes the app target only.
-`deploy_offsets.py` still defaults to **both** — pass `--target` to be explicit.
-
-Their `[OFFSETS]` sections also keep a few older, hand-written key names that the
-shipped C# reads directly via `GetGlobalOffset(...)` in `MainWindow.xaml.cs` —
-e.g. `OFFSET_actor_locx`/`_locy`/`_locz` instead of this repo's combined
-`OFFSET_actor_loc`. So the deploy merges **by name** instead of copying:
-
-```bash
-python3 tools/deploy_offsets.py           # preview → reports/deploy/*.ini
-python3 tools/deploy_offsets.py --apply   # write both targets (.bak made first)
-```
-
-What the merge does:
-
-- A key present in both files gets its value updated.
-- Known vector splits are derived from the one migrated value:
-  `actor_loc` → `actor_locx/y/z`, and the same for `actor_actv`, `dhprop_pos`,
-  `weap_loc`.
-- Everything else in the target is left untouched — AOB patterns, vehicle lists,
-  static constants, target-only keys.
-- A migrated offset with no matching key in the target is printed under
-  **REVIEW**, never silently dropped.
-
-Custom targets: `--target <path>`, repeatable.
+`tools/deploy_offsets.py` is the older merge into multi-section inis by key name
+(including the backend copy `xenvious_ctr/confFiles/web/resources/offsets.ini`);
+the app does not need it any more.
 
 ### Prop model lists
 
-`[OTHER]` holds six model lists (`prop_model_booster`, `_slowdown`,
-`_centitydef_whitelist`, `_stunt_with_color_option`, `_blacklisted`,
-`dprop_model_activationtimer`). They are not offsets: each is a condition over
+`OfflineData/<edition>/prop_lists.json` holds seven model lists
+(`prop_model_booster`, `_slowdown`, `_centitydef_whitelist`,
+`_stunt_with_color_option`, `_blacklisted`, `_raceonly`,
+`dprop_model_activationtimer`); Xenvious compiles them in with `gen.py`. They are not offsets: each is a condition over
 model hashes in the creator scripts, and DLCs extend those conditions. Step 5
 refreshes them as
 
@@ -260,14 +219,14 @@ refreshes them as
 result = base ∪ every condition line that consists mostly of base hashes
 ```
 
-The base is `data/prop_lists_seed.json`, never the ini, so a rerun gives the
+The base is `data/prop_lists_seed.json`, never `prop_lists.json`, so a rerun gives the
 same result instead of drifting into unrelated props. Entries the scripts no
 longer confirm stay and are counted as `kept`. Add a prop by hand in the seed
-file, not in the ini. Standalone:
+file, not in `prop_lists.json`. Standalone:
 
 ```bash
-python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build>          # report
-python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build> --write
+python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build>          # report
+python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build> --write
 ```
 
 Rebuild the app (Windows, Visual Studio/MSBuild) for the `OfflineData` copy to
@@ -381,14 +340,14 @@ fresh scan.
 | `verified_anchors.py` | source-text anchors for non-serialized scalars and moved array blocks |
 | `migrate_offsets.py` | migrates one `offsets.ini` |
 | `deploy_offsets.py` | merges a migrated file into the production inis |
-| `extract_prop_lists.py` | refreshes the six `[OTHER]` prop model lists from the creator scripts; base in `data/prop_lists_seed.json` |
+| `extract_prop_lists.py` | refreshes the seven prop model lists (`prop_lists.json`) from the creator scripts; base in `data/prop_lists_seed.json` |
 | `validate.py` | scores a result against a known-good `offsets.ini` |
 | `score_corpus.py` | scores a result by literal presence in a script corpus |
 | `dialect.py` | normalises the two decompiler spellings before matching |
 | `extract_ysc.py` | pulls decrypted script dumps out of an installed game |
 | `check_aob.py` | checks the `[AOB]` byte patterns against a running game |
 | `run_pipeline.py` | offset-side entry point plus the summary |
-| `../update_xenvious.py` | full update chain, offsets + scrpatches + deploy |
+| `../xupdate.sh` | the whole update, guided (`xupdate/`) |
 | `infer_offsets.py` | legacy pattern/context matcher |
 
 Running the migration directly, for more control:
@@ -521,5 +480,5 @@ python3 tools/extract_ysc.py --variant enhanced --build 1.73-1200 \
 ### 5. Then run the update as usual
 
 ```bash
-python3 update_xenvious.py --new enhanced-1.73-1200 --variant enhanced
+./xupdate.sh enhanced-1.73-1200
 ```

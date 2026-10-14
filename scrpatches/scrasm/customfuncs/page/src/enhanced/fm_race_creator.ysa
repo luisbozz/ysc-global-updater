@@ -921,6 +921,7 @@ fn13:
   ENTER 1, 3
   LOCAL_U8_LOAD 0
   CALL 0x445C88
+  CALL @tp_main                               ; teleport.py, in case the race test does not reach dl_main
   PUSH_CONST_U24 0xFC018                      ; check
   STRING
   LOAD

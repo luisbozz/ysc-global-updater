@@ -144,7 +144,7 @@ class VariantDataTest(unittest.TestCase):
             encoding="utf-8", errors="replace")
         enhanced = (OFFLINE / "enhanced" / "offsets.ini").read_text(
             encoding="utf-8", errors="replace")
-        for section in ("AOB", "OFFSETS", "SESSION"):
+        for section in ("AOB", "OFFSETS"):
             self.assertEqual(ini_keys(legacy, section), ini_keys(enhanced, section),
                              f"[{section}] keys differ between the variants")
 

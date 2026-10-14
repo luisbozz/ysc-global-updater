@@ -37,6 +37,7 @@ Die ``*.ysc.full`` liegen versioniert unter ``scrpatches/disasm/<build>/`` (z.B.
 """
 import argparse
 import json
+import os
 import pathlib
 import re
 import sys
@@ -46,7 +47,9 @@ sys.path.insert(0, str(ROOT))
 import versions  # noqa: E402  (repo-root helper: disasm/<build> resolution)
 
 DISASM = ROOT / "scrpatches" / "disasm"
-PATCHES = ROOT / "scrpatches" / "data" / "scrpatches.json"
+# The patches live in Xenvious (the one copy that ships); XENVIOUS points at the checkout.
+PATCHES = (pathlib.Path(os.environ.get("XENVIOUS", "/opt/xenvious"))
+           / "Xenvious" / "OfflineData" / "legacy" / "scrpatches.json")
 
 
 def aob_to_regex(pattern: str) -> "re.Pattern":
@@ -208,7 +211,7 @@ def main() -> int:
     if not old_build:
         raise SystemExit("no earlier build in disasm/ -- pass --old <build>")
 
-    patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8"))
+    patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8-sig"))
     results = check(patches, old_build, new_build)
 
     for label, script, df in stale_markers(patches, old_build, new_build):

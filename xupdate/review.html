@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xupdate Prüfung</title>
+<style>
+:root {
+  --bg: #f4f5f7; --card: #ffffff; --ink: #1d2330; --muted: #5f6b7d; --line: #dde1e8;
+  --code: #f7f8fa; --mark: #fff1b8; --accent: #2f6fde; --ok: #1f8a4c; --warn: #b4610e; --off: #a33a3a;
+  --chip: #eef1f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14171c; --card: #1c2027; --ink: #e5e8ee; --muted: #98a2b3; --line: #2c323c;
+          --code: #161a20; --mark: #4a4020; --accent: #6f9df5; --ok: #4cc283; --warn: #e3a35a; --off: #e07a7a;
+          --chip: #262b34; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+       font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 2; background: var(--card); border-bottom: 1px solid var(--line);
+         padding: 10px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.bar { flex: 1; min-width: 160px; height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--ok); width: 0; transition: width .2s; }
+.count { color: var(--muted); font-variant-numeric: tabular-nums; }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--ink);
+         border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.off { color: var(--off); }
+main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 80px; display: grid; gap: 14px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--muted); }
+.filters label { display: flex; gap: 4px; align-items: center; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card.answered { opacity: .62; }
+.head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.head h2 { font-size: 15px; margin: 0; font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 10px; background: var(--chip); color: var(--muted); }
+.chip.sure { color: var(--ok); }
+.chip.done { color: var(--accent); }
+.q { margin: 6px 0 2px; }
+.note { color: var(--muted); font-size: 13px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+@media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+.side h3 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+           display: flex; justify-content: space-between; gap: 8px; }
+.side h3 a, .side h3 span.open { text-transform: none; letter-spacing: 0; color: var(--accent); cursor: pointer; text-decoration: none; }
+pre { margin: 0; background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 6px 0;
+      overflow-x: auto; font: 12.5px/1.5 ui-monospace, Consolas, monospace; }
+pre div { padding: 0 10px; white-space: pre; }
+pre div.hit { background: var(--mark); }
+pre .n { color: var(--muted); display: inline-block; min-width: 6ch; user-select: none; }
+.vals { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin-top: 10px;
+        font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; word-break: break-all; }
+.vals .k { color: var(--muted); font-family: system-ui, sans-serif; }
+.act { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.act input { flex: 1; min-width: 220px; font: 12.5px ui-monospace, Consolas, monospace; padding: 6px 8px;
+             border: 1px solid var(--line); border-radius: 6px; background: var(--code); color: var(--ink); }
+.answer { color: var(--accent); font-size: 13px; }
+footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--line);
+         padding: 10px 20px; display: flex; gap: 12px; justify-content: flex-end; align-items: center; }
+footer .keys { margin-right: auto; color: var(--muted); font-size: 12.5px; }
+kbd { font: 12px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.empty { text-align: center; color: var(--muted); padding: 40px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">xupdate</h1>
+  <div class="bar"><div id="progress"></div></div>
+  <span class="count" id="count"></span>
+  <button id="acceptSure">Alle sicheren übernehmen</button>
+</header>
+<main>
+  <div class="filters">
+    <label><input type="checkbox" id="onlyOpen" checked> nur offene</label>
+    <label><input type="checkbox" id="kOffset" checked> Offsets</label>
+    <label><input type="checkbox" id="kPatch" checked> Patches</label>
+    <label><input type="checkbox" id="kPage" checked> Payloads</label>
+    <label><input type="checkbox" id="kOther" checked> Sonstiges</label>
+  </div>
+  <div id="list"></div>
+</main>
+<footer>
+  <span class="keys"><kbd>j</kbd>/<kbd>k</kbd> nächster/voriger, <kbd>Enter</kbd> Vorschlag übernehmen,
+    <kbd>e</kbd> eigenen Wert, <kbd>o</kbd> in VS Code öffnen</span>
+  <button class="primary" id="done">Fertig</button>
+</footer>
+<script>
+let items = [], cur = 0;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const kindOf = (it) => it.kind === "offset" ? "kOffset" : it.kind === "patch" ? "kPatch" : it.kind === "page" ? "kPage" : "kOther";
+
+async function load() {
+  const r = await fetch("/api/items");
+  const d = await r.json();
+  items = d.items;
+  $("title").textContent = d.title;
+  document.title = d.title;
+  render();
+}
+
+async function answer(list) {
+  for (const a of list) { const it = items.find((x) => x.id === a.id); if (it) it.answer = a.answer; }
+  await fetch("/api/answer", {method: "POST", body: JSON.stringify({answers: list})});
+  render();
+}
+
+function visible() {
+  return items.filter((it) => (!$("onlyOpen").checked || !it.answer) && $(kindOf(it)).checked);
+}
+
+function snippet(sn, side) {
+  if (!sn) return `<div class="side"><h3>${side}</h3><pre><div class="n">keine Stelle gefunden</div></pre></div>`;
+  const rows = sn.lines.map((t, k) => {
+    const n = sn.first + k;
+    return `<div class="${n === sn.line ? "hit" : ""}"><span class="n">${n}</span>${esc(t)}</div>`;
+  }).join("");
+  const name = sn.file.split("/").slice(-2).join("/");
+  return `<div class="side"><h3><span>${side} · ${esc(name)}:${sn.line}</span>
+    <span><a href="${esc(sn.link)}">VS Code</a> · <span class="open" data-file="${esc(sn.file)}" data-line="${sn.line}">öffnen</span></span></h3>
+    <pre>${rows}</pre></div>`;
+}
+
+function card(it, idx) {
+  const chips = [`<span class="chip">${esc(it.kind)}</span>`];
+  if (it.sure) chips.push(`<span class="chip sure">sicher</span>`);
+  if (it.answer) chips.push(`<span class="chip done">beantwortet</span>`);
+  const vals = [];
+  if (it.old_value) vals.push(`<span class="k">bisher</span><span>${esc(it.old_value)}</span>`);
+  if (it.guess) vals.push(`<span class="k">Vorschlag</span><span>${esc(it.guess)}</span>`);
+  if (it.choices && it.choices.length > 1 && it.kind === "offset")
+    it.choices.forEach((c, k) => vals.push(`<span class="k">Wert ${k + 1}</span><span>${esc(c)}</span>`));
+  const buttons = [];
+  if (it.guess) buttons.push(`<button class="primary" data-a="übernehmen">Vorschlag übernehmen</button>`);
+  if (it.kind === "offset" && it.choices) it.choices.forEach((c, k) => { if (c !== it.guess) buttons.push(`<button data-v="${esc(c)}">Wert ${k + 1}</button>`); });
+  if ((it.choices || []).includes("abschalten")) buttons.push(`<button class="off" data-a="abschalten">abschalten</button>`);
+  if (it.kind === "info" && !(it.choices || []).length) buttons.push(`<button data-a="ok">zur Kenntnis</button>`);
+  if (it.kind === "info" && (it.choices || []).length) buttons.push(`<button data-a="ok">so lassen</button>`);
+  const free = it.kind !== "info"
+    ? `<input placeholder="eigener Wert${it.kind === "patch" ? " (Pattern | Offset | Bytes)" : ""}" value="${esc(it.answer && it.answer !== "übernehmen" && it.answer !== "abschalten" ? it.answer : "")}"><button data-own>speichern</button>` : "";
+  return `<section class="card ${idx === cur ? "current" : ""} ${it.answer ? "answered" : ""}" data-id="${esc(it.id)}">
+    <div class="head"><h2>${esc(it.title)}</h2>${chips.join("")}</div>
+    <p class="q">${esc(it.question)}</p>
+    ${it.note ? `<div class="note">${esc(it.note)}</div>` : ""}
+    ${(it.old || it.new) ? `<div class="cols">${snippet(it.old, "alt")}${snippet(it.new, "neu")}</div>` : ""}
+    ${vals.length ? `<div class="vals">${vals.join("")}</div>` : ""}
+    <div class="act">${buttons.join("")}${free}
+      ${it.answer ? `<span class="answer">Antwort: ${esc(it.answer)}</span> <button data-a="">zurücksetzen</button>` : ""}</div>
+  </section>`;
+}
+
+function render() {
+  const vis = visible();
+  if (cur >= vis.length) cur = Math.max(0, vis.length - 1);
+  $("list").innerHTML = vis.length ? vis.map(card).join("") : `<div class="empty">Nichts offen. Unten auf „Fertig“ drücken.</div>`;
+  const done = items.filter((x) => x.answer).length;
+  $("count").textContent = `${done} / ${items.length} beantwortet`;
+  $("progress").style.width = items.length ? `${100 * done / items.length}%` : "100%";
+  const sure = items.filter((x) => x.sure && !x.answer && x.guess).length;
+  $("acceptSure").textContent = `Alle sicheren übernehmen (${sure})`;
+  $("acceptSure").disabled = !sure;
+}
+
+$("list").addEventListener("click", (e) => {
+  const sec = e.target.closest("section.card");
+  if (!sec) return;
+  const id = sec.dataset.id;
+  const vis = visible();
+  cur = vis.findIndex((x) => x.id === id);
+  const t = e.target;
+  if (t.dataset.a !== undefined) answer([{id, answer: t.dataset.a}]);
+  else if (t.dataset.v !== undefined) answer([{id, answer: t.dataset.v}]);
+  else if (t.dataset.own !== undefined) { const v = sec.querySelector("input").value.trim(); if (v) answer([{id, answer: v}]); }
+  else if (t.classList.contains("open")) fetch("/api/open", {method: "POST", body: JSON.stringify({file: t.dataset.file, line: t.dataset.line})});
+  else render();
+});
+
+$("acceptSure").onclick = () => answer(items.filter((x) => x.sure && !x.answer && x.guess).map((x) => ({id: x.id, answer: "übernehmen"})));
+for (const id of ["onlyOpen", "kOffset", "kPatch", "kPage", "kOther"]) $(id).onchange = render;
+$("done").onclick = async () => {
+  const open = items.filter((x) => !x.answer).length;
+  if (open && !$("done").dataset.sure) {
+    $("done").dataset.sure = "1";
+    $("done").textContent = `${open} offen – trotzdem fertig?`;
+    return;
+  }
+  await fetch("/api/done", {method: "POST"});
+  document.body.innerHTML = `<div class="empty">Gespeichert. Weiter im Terminal.</div>`;
+};
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") { if (e.key === "Enter") e.target.nextElementSibling?.click(); return; }
+  const vis = visible();
+  if (!vis.length) return;
+  const it = vis[cur];
+  if (e.key === "j") { cur = Math.min(vis.length - 1, cur + 1); render(); scroll(); }
+  else if (e.key === "k") { cur = Math.max(0, cur - 1); render(); scroll(); }
+  else if (e.key === "Enter" && it.guess) { answer([{id: it.id, answer: "übernehmen"}]); }
+  else if (e.key === "e") { document.querySelector("section.current input")?.focus(); e.preventDefault(); }
+  else if (e.key === "o" && (it.old || it.new)) {
+    for (const sn of [it.old, it.new]) if (sn) fetch("/api/open", {method: "POST", body: JSON.stringify({file: sn.file, line: sn.line})});
+  }
+});
+function scroll() { document.querySelector("section.current")?.scrollIntoView({block: "nearest"}); }
+load();
+</script>
+</body>
+</html>

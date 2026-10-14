@@ -33,6 +33,7 @@ This runs from WSL and drives Windows PowerShell, so paths are translated with
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import shutil
 import subprocess
@@ -44,15 +45,16 @@ sys.path.insert(0, str(ROOT))
 
 import versions  # noqa: E402
 
-# The six scripts the scrpatch toolchain patches at runtime.
+# The scripts the scrpatch toolchain patches at runtime.
 DUMP_SCRIPTS = (
-    "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
+    "creator", "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
     "fm_race_creator", "fm_survival_creator", "fmmc_launcher",
+    "public_mission_creator",
 )
-# The two extra ones the offset side reads, for a build the upstream has not
-# published yet. These still need decompiling before the offset tools can use
-# them; the dumps alone are not .c files.
-EXTRA_SCRIPTS = ("public_mission_creator", "tuneables_processing")
+# The extra one the offset side reads, for a build the upstream has not
+# published yet. It still needs decompiling before the offset tools can use
+# it; the dump alone is not a .c file.
+EXTRA_SCRIPTS = ("tuneables_processing",)
 
 # Where the scripts live inside the archives. Enhanced moved them into
 # update2.rpf and renamed the inner archive.
@@ -93,7 +95,7 @@ foreach ($n in $want) {{
     $data = $archive.ExtractFile($e)
     if ($null -eq $data) {{ Write-Output "EMPTY $n"; continue }}
     [IO.File]::WriteAllBytes((Join-Path $out "$n.ysc"), $data)
-    Write-Output "OK $n $($data.Length)"
+    Write-Output "OK $n $($data.Length) $($e.SystemFlags.Value) $($e.GraphicsFlags.Value)"
 }}
 """
 
@@ -157,12 +159,16 @@ def main() -> int:
             return 1
 
         extracted = 0
+        flags_file = out_dir / "flags.json"
+        flags = json.loads(flags_file.read_text()) if flags_file.exists() else {}
         for line in res.stdout.splitlines():
             line = line.strip()
             if line.startswith("ARCHIVE "):
                 print(f"  archive: {line[8:]}")
             elif line.startswith("OK "):
-                _, name, size = line.split()
+                _, name, size, virtual, physical = line.split()
+                # The page flags of the RPF entry; xupdate derives [SCRIPTSPACE] from them.
+                flags[name] = {"virtual": f"{int(virtual):08X}", "physical": f"{int(physical):08X}"}
                 src = pathlib.Path(staging) / f"{name}.ysc"
                 shutil.copyfile(src, out_dir / f"{name}.ysc.full")
                 if args.keep_ysc:
@@ -172,10 +178,13 @@ def main() -> int:
             elif line:
                 print(f"    {line}", file=sys.stderr)
 
+    if extracted:
+        flags_file.write_text(json.dumps(flags, indent=2, sort_keys=True) + "\n")
     if not extracted:
         print("nothing extracted", file=sys.stderr)
         return 1
-    print(f"\n  {extracted} dump(s) -> {out_dir.relative_to(ROOT)}")
+    shown = out_dir.relative_to(ROOT) if out_dir.is_relative_to(ROOT) else out_dir
+    print(f"\n  {extracted} dump(s) -> {shown}")
     return 0
 
 

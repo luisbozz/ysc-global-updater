@@ -2,8 +2,10 @@
 
 Xenvious patches the creator scripts' **bytecode** at runtime: dev mode, the cam
 fix, the injected *custom functions*, and a dozen smaller behaviour tweaks. The
-patch set lives in [`data/scrpatches.json`](data/scrpatches.json) — 43 entries
-across 6 scripts.
+patch set lives in Xenvious, one per edition:
+`Xenvious/OfflineData/<edition>/scrpatches.json` (and `scrpatchesdev.json`). There
+is no copy here; the tools read Xenvious' file (`--patches`, or `XENVIOUS` for the
+checkout, default `/opt/xenvious`).
 
 Every GTA update moves the bytecode, so patterns stop matching. This directory
 holds the tools to find out what broke, repair what can be repaired
@@ -15,25 +17,25 @@ automatically, and tell you exactly what is left.
 
 ## After a game update
 
-One command does the whole pass:
+`../xupdate.sh <build>` does it as part of the whole update (see
+[`../xupdate/README.md`](../xupdate/README.md)). For the patches it uses
+[`carry.py`](carry.py): each patch is found again through the code, not its bytes.
 
-```bash
-cd /opt/ysc-global-updater
-./fetch_update.sh 1.73-3889                          # get the new dumps
-python3 scrpatches/update_patches.py --new 1.73-3889
-```
+1. The pattern's site is an instruction in some Rockstar function. The function is
+   found in the new build by its fingerprint (`scrasm/funcsig.py`: natives, globals,
+   constants), or, failing that, between the counterparts of its neighbours by how
+   alike the instruction sequences are (`scrasm/crossbuild.py`).
+2. The two functions are aligned instruction by instruction (opcode names), which
+   gives the site's counterpart even when every operand moved.
+3. The pattern is laid over the new site, keeping its wildcards; if it is no longer
+   unique it grows by the next instructions (moving operands wildcarded).
+4. The bytes the patch writes are carried: an operand the patch copied from the
+   original code takes the new original's operand, a CALL into Rockstar's code the
+   new address of that function, a string push the new position of the same text.
 
-Five steps: check, repair what it can, drop markers that expired, repair the
-injected payloads, list what needs a human. Nothing is written without asking,
-and `data/scrpatches.json.bak` is written before the first change.
-
-```bash
---dry-run      # show everything, write nothing
---yes          # accept every verified proposal without asking
---no-payloads  # skip the customfuncs repair
-```
-
-`--old` defaults to the build right before `--new`.
+A pattern that still matches is carried too, because its bytes can hold operands
+that moved. Whatever changes is shown for review; `doctor.py`'s operand wildcards
+and string anchors are the fallback (20 s per patch at most).
 
 The individual tools stay available for detail work:
 
@@ -41,7 +43,6 @@ The individual tools stay available for detail work:
 python3 scrpatches/check_patches.py --new 1.73-3889          # health check only
 python3 scrpatches/doctor.py --new 1.73-3889                 # diagnose every break
 python3 scrpatches/doctor.py --new 1.73-3889 --patch "cam fix"
-python3 scrpatches/repair_scrpatches.py --new 1.73-3889      # payloads only
 ```
 
 ## What a patch entry looks like
@@ -290,47 +291,19 @@ The `.c` files have no byte offsets — they are reconstructed source. They tell
 you *which* code, never *which bytes*. The pattern always comes from
 `disasm/<build>/*.ysc.full`.
 
-## Repairing the injected payloads
+## The injected payloads
 
-```bash
-python3 scrpatches/repair_scrpatches.py --new 1.73-3889
-```
+The custom funcs are written as assembly in
+[`scrasm/customfuncs/page/src/<edition>/*.ysa`](scrasm/customfuncs/page/) for the build
+in `src/<edition>/BUILD`, and assembled by `build_page.py`. On an update
+`relocate.py` moves the sources to the new build: CALL targets by function
+fingerprint, strings by text, statics/globals/enum constants by what Rockstar's code
+uses at the same aligned place. A small constant that is used for many things (a
+menu id) gets a hint in the source, `; ~IOFFSET 272`: only uses next to that
+instruction vote. xupdate writes the moved sources back with the new BUILD.
 
-Per payload it updates native indices by name, relocates internal calls to the
-new injection base, and re-resolves external R\* call addresses by function
-fingerprinting (strict, positional, loose). Output:
-
-- `reports/scrpatches.repaired.json` — the full patch set, payloads updated
-- `reports/customfuncs_repair.txt` — what changed per payload
-
-Read the report. Anything under `!! external calls UNRESOLVED`, `!! natives
-missing` or `!! embedded strides needing review` needs a human before shipping.
-
-A patch outside the payload can call into it. `show hidden placement
-categories` (LTS, Capture) replaces the end of the placement menu builder with
-a call to the payload's menu function, which adds the Mission Creator rows the
-mode leaves out (actors, objects, locations, fixtures). The call target differs
-per build, so the hook reads it through `values` from a marker the payload
-carries (`PUSH_CONST_U32 0x584D4E55 ; CALL`). The health check therefore counts
-`values` hits in the script's injected payload as well as in its bytecode.
-
-The payloads also exist as readable assembly under
-[`scrasm/customfuncs/src/*.ysa`](scrasm/customfuncs/src/) — regenerate with
-`python3 gen_customfuncs_src.py`, which round-trip verifies that the source
-re-assembles to the exact original bytes.
-
-## Shipping
-
-`reports/scrpatches.repaired.json` is a full drop-in replacement for the
-`scrpatches.json` Xenvious ships — same entries, same order. Copy it once the
-health check is clean and the repair report has no review items.
-
-Unlike `offsets.ini` there is no merge step: the file has no hand-maintained
-sections, so it is replaced wholesale.
-
-It goes to `Xenvious/OfflineData/legacy/scrpatches.json`, next to the Enhanced
-copy. `update_xenvious.py` does the copy as part of step 5; nothing takes
-effect until the app is rebuilt, because OfflineData is compiled into the exe.
+A patch outside the payload can call into it (`build_page.HOOKS`); `build_page.py`
+points those CALLs at the payload's labels after every assembly.
 
 ## Enhanced
 
@@ -380,50 +353,23 @@ That a pattern matches is not proof that it matches the *right* site — see
 
 ## Known gaps
 
-**Embedded struct field offsets are not migrated.** Injected payloads reference
-globals directly, and the field offsets inside those references are the same
-values `offsets.ini` migrates. The repair updates strides it can prove but not
-these. The repair report lists every global a payload touches — cross-check them
-against the offsets migration before shipping.
-
-**`values` sub-patterns get no automatic repair.** Neither the operand path nor
-the string anchor covers them; a broken `values` entry is always manual.
+**`values` sub-patterns are not carried.** A broken `values` entry is a review item
+without a proposal.
 
 **The health check cannot verify intent.** It counts hits, so a pattern that
 matches one wrong site per build reads as `OK`. See *What the health check
-cannot tell you*.
-
-**`fetch_update.sh` is the only source of `.ysc.full` dumps.** OpenIV gives raw
-encrypted `.ysc`; decrypting them yourself is out of scope, so a build
-calamity-inc has not published cannot be checked here.
-
-## Status, 1.71-3586 → 1.73-3889
-
-```
-BROKEN     :   0
-REDERIVED  :   2
-DISABLED   :   5
-OK         :  36
-TOTAL      :  43
-```
-
-| Patch | Scripts | State |
-|---|---|---|
-| `cam fix` | capture, deathmatch, race, survival | repaired automatically, one pattern for all four |
-| `show stunt prop item cycle` | capture, lts | re-derived via string anchor, `derived_for: 1.73-3889` |
-| `precise templates` | all 5 | parked — main pattern is fine, `values#1` still needs deriving |
-
-All 3 injected payloads repair cleanly, 0 need review.
+cannot tell you*. carry.py at least checks that the site is the same instruction of
+the same function.
 
 ## Tools
 
 | File | Job |
 |---|---|
-| `update_patches.py` | the one entry point: check, repair, clean up, park |
+| `carry.py` | carries a patch to a new build through its function (used by xupdate) |
 | `check_patches.py` | health check: match every pattern against old and new bytecode |
 | `doctor.py` | one diagnostic page per broken patch, with verified candidates |
-| `repair_scrpatches.py` | migrate the injected customfuncs payloads to a new build |
-| `gen_customfuncs_src.py` | payload bytecode → readable `.ysa`, round-trip verified |
+| `scrasm/crossbuild.py` | pairs functions and instructions of one script in two builds |
+| `scrasm/customfuncs/page/` | payload sources, assembler driver, relocation, victim layout |
 | `scrasm/` | the YSC assembler/disassembler these build on — see [scrasm/README.md](scrasm/README.md) |
 | `../tools/extract_ysc.py` | pulls decrypted dumps out of an installed game (Enhanced has no upstream) |
 
