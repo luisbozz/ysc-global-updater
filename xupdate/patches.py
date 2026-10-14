@@ -90,8 +90,14 @@ def update(patches: list, old_build: str, new_build: str, file_tag: str,
     from check_patches import _load, check, is_healthy
     import doctor
 
+    from .common import DISASM
+    # A script without its dump in either build cannot be checked: its patches go to the review
+    # instead of stopping the whole step.
+    missing = {p["script_name"] for p in patches if p.get("script_name") and p.get("pattern")
+               and not all((DISASM / b / f"{p['script_name']}.ysc.full").is_file() for b in (old_build, new_build))}
+    checkable = [p for p in patches if p.get("script_name") not in missing]
     health = {}
-    for r, p in zip(_check_each(patches, old_build, new_build, check), patches):
+    for r, p in zip(_check_each(checkable, old_build, new_build, check), checkable):
         health[id(p)] = r
     out, items = [copy.deepcopy(p) for p in patches], []
     # By script, so carry and the snippets need one script pair in memory at a time.
@@ -99,6 +105,13 @@ def update(patches: list, old_build: str, new_build: str, file_tag: str,
     for n in order:
         p = patches[n]
         if not p.get("pattern") or is_page(p) or p.get("enabled") is False:
+            continue
+        if p.get("script_name") in missing:
+            items.append(Item(
+                id=f"patch:{file_tag}#{n}", kind="patch", title=label(p),
+                question=f"{p['script_name']}.ysc.full fehlt in scrpatches/disasm/ (alt oder neu); nicht geprüft.",
+                old_value=_fmt(p["pattern"], p.get("offset", 0), p.get("bytes_to_patch", "")),
+                choices=["abschalten"]))
             continue
         r = health.get(id(p))
         healthy = r is not None and is_healthy(r["status"])

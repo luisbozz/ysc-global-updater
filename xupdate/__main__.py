@@ -32,7 +32,8 @@ from .common import DISASM, ROOT, SCRIPTS, WORK, Item
 
 C_SCRIPTS = ("fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator", "fm_race_creator",
              "fm_survival_creator", "fmmc_launcher", "public_mission_creator", "tuneables_processing")
-FULL_SCRIPTS = ("fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator", "fm_race_creator",
+# creator: the creator hub (menu unlock patch).
+FULL_SCRIPTS = ("creator", "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator", "fm_race_creator",
                 "fm_survival_creator", "public_mission_creator")
 PATCH_FILES = ("scrpatches.json", "scrpatchesdev.json")
 LIST_FILES = ("race_vehicles.json", "mprops.json")
@@ -127,6 +128,10 @@ def step_scripts(edition, new_build) -> bool:
     miss_f = [s for s in FULL_SCRIPTS if not (DISASM / new_build / f"{s}.ysc.full").is_file()]
     if not miss_c and not miss_f:
         ok(f"{new_build}: {len(C_SCRIPTS)} .c und {len(FULL_SCRIPTS)} .ysc.full vorhanden")
+        return True
+    if not miss_c and miss_f == ["creator"]:
+        # Only the hub's menu patch needs it; that patch goes to the review.
+        bad(f"scrpatches/disasm/{new_build}/ fehlt: creator.ysc.full (nur der Menü-Patch, kommt in die Prüfung)")
         return True
     if miss_c:
         bad(f"scripts/{new_build}/ fehlt: " + ", ".join(f"{s}.c" for s in miss_c))
