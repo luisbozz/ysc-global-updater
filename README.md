@@ -208,9 +208,10 @@ the app does not need it any more.
 
 ### Prop model lists
 
-`[OTHER]` holds six model lists (`prop_model_booster`, `_slowdown`,
-`_centitydef_whitelist`, `_stunt_with_color_option`, `_blacklisted`,
-`dprop_model_activationtimer`). They are not offsets: each is a condition over
+`OfflineData/<edition>/prop_lists.json` holds seven model lists
+(`prop_model_booster`, `_slowdown`, `_centitydef_whitelist`,
+`_stunt_with_color_option`, `_blacklisted`, `_raceonly`,
+`dprop_model_activationtimer`); Xenvious compiles them in with `gen.py`. They are not offsets: each is a condition over
 model hashes in the creator scripts, and DLCs extend those conditions. Step 5
 refreshes them as
 
@@ -218,14 +219,14 @@ refreshes them as
 result = base ∪ every condition line that consists mostly of base hashes
 ```
 
-The base is `data/prop_lists_seed.json`, never the ini, so a rerun gives the
+The base is `data/prop_lists_seed.json`, never `prop_lists.json`, so a rerun gives the
 same result instead of drifting into unrelated props. Entries the scripts no
 longer confirm stay and are counted as `kept`. Add a prop by hand in the seed
-file, not in the ini. Standalone:
+file, not in `prop_lists.json`. Standalone:
 
 ```bash
-python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build>          # report
-python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build> --write
+python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build>          # report
+python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build> --write
 ```
 
 Rebuild the app (Windows, Visual Studio/MSBuild) for the `OfflineData` copy to
@@ -339,7 +340,7 @@ fresh scan.
 | `verified_anchors.py` | source-text anchors for non-serialized scalars and moved array blocks |
 | `migrate_offsets.py` | migrates one `offsets.ini` |
 | `deploy_offsets.py` | merges a migrated file into the production inis |
-| `extract_prop_lists.py` | refreshes the six `[OTHER]` prop model lists from the creator scripts; base in `data/prop_lists_seed.json` |
+| `extract_prop_lists.py` | refreshes the seven prop model lists (`prop_lists.json`) from the creator scripts; base in `data/prop_lists_seed.json` |
 | `validate.py` | scores a result against a known-good `offsets.ini` |
 | `score_corpus.py` | scores a result by literal presence in a script corpus |
 | `dialect.py` | normalises the two decompiler spellings before matching |

@@ -36,7 +36,7 @@ Step 1 says what is missing and prints the commands.
 | 2 | offsets | `tools/run_pipeline.py` migrates every key; each result is checked against the code around its use in both builds (same lines with numbers ignored). Agreement: done. Disagreement, or no result: review item. The `[i]` and `[n /*s*/]` of Xenvious' notation are kept (`paths.reshape`). |
 | 3 | patches | every patch is carried by its function, not its bytes (`scrpatches/carry.py`): the function is found by its fingerprint, aligned instruction by instruction, the pattern rebuilt at the same instruction, and operands the patch copied from the game's code (fields, CALL targets, strings) updated. Changed patches are review items. |
 | 4 | payloads | Legacy: the victim function is found again (`victims/layout.py`), giving `[SCRIPTVICTIM]`, the payload base and the stub patch. Enhanced: `[SCRIPTSPACE]` is computed from the shipped page flags (`xupdate/space.py`: one 0x80000 chunk, then 0x40000 chunks to three pages past the data, checked like `ScriptSpace.CheckLayout`), the payload goes to the first page behind the code. The `.ysa` sources are moved to the new build (`relocate.py`). |
-| 5 | lists | `[OTHER]` prop lists, `race_vehicles.json` (with the ADLC vehicles), `mprops.json` |
+| 5 | lists | `prop_lists.json`, `race_vehicles.json` (with the ADLC vehicles), `mprops.json` |
 | 6 | review | the browser page (or `--terminal`) |
 | 7 | build | answers applied, payloads assembled, hooks pointed at the new labels |
 | 8 | deploy | writes into Xenvious, runs `tools/builddata/gen.py` there, copies the moved sources to `page/src/<edition>/` |
@@ -77,9 +77,8 @@ Build Xenvious, test every creator in game, then commit both repositories.
 
 A new extractor is a function in `xupdate/extract.py` that returns
 `({OfflineData file: work file}, review items, report lines)`; add it to
-`EXTRACTORS`. Data that belongs into offsets.ini is a step on the ini text like
-`prop_lists`. If Xenvious reads it at start, generate C# for it in Xenvious'
-`tools/builddata/gen.py` instead of loading a file.
+`EXTRACTORS`. If Xenvious reads it at start, generate C# for it in Xenvious'
+`tools/builddata/gen.py` instead of loading a file, as for `prop_lists.json`.
 
 ## Checked so far
 

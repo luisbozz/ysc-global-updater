@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Refresh the prop model lists in a Xenvious offsets.ini from a build's creator scripts.
+"""Refresh Xenvious' prop model lists (OfflineData/<edition>/prop_lists.json) from a build's creator scripts.
 
-offsets.ini carries six lists under [OTHER] (prop_model_booster, _slowdown,
-_centitydef_whitelist, _stunt_with_color_option, _blacklisted,
-dprop_model_activationtimer). They come from the creator scripts, where each list
+prop_lists.json carries seven lists (prop_model_booster, _slowdown,
+_centitydef_whitelist, _stunt_with_color_option, _blacklisted, _raceonly,
+dprop_model_activationtimer); Xenvious compiles them in (tools/builddata/gen.py). They come from the creator scripts, where each list
 is written as a condition over model hashes:
 
     if (model == joaat("stt_prop_track_speedup") || model == joaat("...") || ...)
@@ -15,7 +15,7 @@ How a list is refreshed
     result = base  ∪  every condition line that consists mostly of base hashes
 
 "Mostly" is at least two hashes and at least half of the line. The base is
-data/prop_lists_seed.json, not the ini: anchoring on the tool's own output made
+data/prop_lists_seed.json, not prop_lists.json: anchoring on the tool's own output made
 every rerun grow the list, and after a few rounds it had drifted into unrelated
 props (coke tables, trolleys in the stunt colour list). A fixed base keeps the
 tool a pure function of (base, scripts), so reruns give the same result.
@@ -31,14 +31,14 @@ matching condition and stay.
 Format
 ------
 Xenvious compares the first four lists as model.ToString("X") -- upper-case hex
-without leading zeros -- and the last two as signed decimal. The ini had entries
+without leading zeros -- and the last three as signed decimal. The old ini had entries
 with a leading zero ("0516376C") and one with a stray space; they could never
 match. Output is written in the canonical form for each list.
 
 Usage
 -----
-    python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build>
-    python3 tools/extract_prop_lists.py --ini <offsets.ini> --scripts scripts/<build> --write
+    python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build>
+    python3 tools/extract_prop_lists.py --json <prop_lists.json> --scripts scripts/<build> --write
 
 Without --write it only reports.
 """
@@ -155,25 +155,25 @@ def anchored_set(scripts: pathlib.Path, first: str, second: str) -> set[int]:
 SEED = pathlib.Path(__file__).resolve().parents[1] / "data" / "prop_lists_seed.json"
 
 
-def refresh_ini(text: str, scripts: pathlib.Path, seed_path: pathlib.Path = SEED):
-    """Return ``(new_text, rows)``; rows are ``(key, ini, found, added, kept, fixed)``.
+def refresh_lists(current: dict, scripts: pathlib.Path, seed_path: pathlib.Path = SEED):
+    """Return ``(new_lists, rows)``; rows are ``(key, now, found, added, kept, fixed)``.
 
-    ``added`` counts entries the ini gains. A list missing from the ini yields a
-    row of Nones and is left alone. Raises FileNotFoundError without creator
-    scripts, so a wrong --scripts never empties anything.
+    ``current`` is prop_lists.json: list name -> entries (strings). ``added`` counts
+    entries a list gains. A list missing from ``current`` yields a row of Nones and is
+    left out. Raises FileNotFoundError without creator scripts, so a wrong --scripts
+    never empties anything.
     """
     seed = json.loads(pathlib.Path(seed_path).read_text(encoding="utf-8"))
     conds = condition_sets(pathlib.Path(scripts))
     if not conds:
         raise FileNotFoundError(f"no creator scripts under {scripts}")
-    rows = []
+    rows, out = [], {}
     for key, kind in LISTS.items():
-        m = re.search(rf"^({re.escape(key)}\s*=\s*)(['\"]?)(.*?)\2\s*$", text, re.M)
-        if not m:
+        if key not in current:
             rows.append((key, None, None, None, None, None))
             continue
-        raw = m.group(3)
-        old = parse_value(raw, kind)      # what the ini has now, for the report only
+        raw = current[key]
+        old = parse_value(",".join(raw), kind)      # what the file has now, for the report only
         if key in ANCHORED:
             found = anchored_set(pathlib.Path(scripts), *ANCHORED[key])
             if not found:
@@ -184,40 +184,45 @@ def refresh_ini(text: str, scripts: pathlib.Path, seed_path: pathlib.Path = SEED
             found = refresh(base, conds)
             new = base | found
         # entries whose spelling could never match at runtime (leading zero, spaces)
-        fixed = sum(1 for x in raw.split(",")
+        fixed = sum(1 for x in raw
                     if x != x.strip() or (kind == "hex" and len(x.strip()) > 1 and x.strip()[0] == "0"))
         rows.append((key, len(old), len(found), len(new - old), len(base - found), fixed))
-        q = m.group(2) or "'"
-        text = text[:m.start()] + f"{m.group(1)}{q}{fmt(new, kind)}{q}" + text[m.end():]
-    return text, rows
+        out[key] = fmt(new, kind).split(",") if new else []
+    return out, rows
+
+
+def dump(lists: dict) -> str:
+    """prop_lists.json as Xenvious keeps it."""
+    return json.dumps(lists, indent=1) + "\n"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--ini", required=True, help="Xenvious offsets.ini to refresh")
+    ap.add_argument("--json", required=True, help="Xenvious OfflineData/<edition>/prop_lists.json to refresh")
     ap.add_argument("--scripts", required=True, help="decompiled scripts of the target build")
-    ap.add_argument("--write", action="store_true", help="write the refreshed lists into --ini")
+    ap.add_argument("--write", action="store_true", help="write the refreshed lists into --json")
     ap.add_argument("--seed", default=str(SEED), help="reviewed base lists (default: data/prop_lists_seed.json)")
     args = ap.parse_args()
 
-    ini_path = pathlib.Path(args.ini)
-    text = ini_path.read_text(encoding="utf-8")
+    path = pathlib.Path(args.json)
+    text = path.read_text(encoding="utf-8-sig")
     try:
-        new_text, rows = refresh_ini(text, pathlib.Path(args.scripts), pathlib.Path(args.seed))
+        lists, rows = refresh_lists(json.loads(text), pathlib.Path(args.scripts), pathlib.Path(args.seed))
+        new_text = dump(lists)
     except FileNotFoundError as e:
         print(e, file=sys.stderr)
         return 1
 
-    print(f"  {'list':<36} {'ini':>5} {'found':>6} {'added':>6} {'kept*':>6} {'fixed':>6}")
-    for key, n_ini, n_found, added, kept, fixed in rows:
-        if n_ini is None:
-            print(f"  {key:<36} missing in ini")
+    print(f"  {'list':<36} {'now':>5} {'found':>6} {'added':>6} {'kept*':>6} {'fixed':>6}")
+    for key, n_now, n_found, added, kept, fixed in rows:
+        if n_now is None:
+            print(f"  {key:<36} missing in {path.name}")
         else:
-            print(f"  {key:<36} {n_ini:5} {n_found:6} {added:+6} {kept:6} {fixed:6}")
+            print(f"  {key:<36} {n_now:5} {n_found:6} {added:+6} {kept:6} {fixed:6}")
     print("\n  * kept: in the base but in no matching condition -- hand-added or stale; review")
     if args.write and new_text != text:
-        ini_path.write_text(new_text, encoding="utf-8")
-        print(f"\nwritten: {ini_path}")
+        path.write_text(new_text, encoding="utf-8")
+        print(f"\nwritten: {path}")
     return 0
 
 if __name__ == "__main__":

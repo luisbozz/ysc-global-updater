@@ -1,6 +1,6 @@
 """Step "lists": data Xenvious reads from the game's scripts besides offsets and patches.
 
-- [OTHER] prop model lists in offsets.ini (boosters, blacklisted props, ...): from the
+- prop_lists.json, the prop model lists (boosters, blacklisted props, ...): from the
   decompiled creator scripts (tools/extract_prop_lists.py).
 - race_vehicles.json: the race creator's vehicle classes incl. the DLC (ADLC) vehicles
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
@@ -22,17 +22,23 @@ from .common import ROOT, SCRIPTS, Item
 sys.path.insert(0, str(ROOT))
 
 
-def prop_lists(ini_text: str, new_build: str):
-    """(ini text, report lines). Raises FileNotFoundError without creator scripts."""
-    from tools.extract_prop_lists import refresh_ini
-    text, rows = refresh_ini(ini_text, SCRIPTS / new_build)
+def prop_lists(new_build: str, edition: str, work: Path, offline: Path):
+    out = work / "prop_lists.json"
+    from tools.extract_prop_lists import dump, refresh_lists
+    try:
+        current = json.loads((offline / "prop_lists.json").read_text(encoding="utf-8-sig"))
+        lists, rows = refresh_lists(current, SCRIPTS / new_build)
+    except (FileNotFoundError, ValueError) as e:
+        return {}, [Item(id="list:prop_lists", kind="info", title="prop_lists.json",
+                         question=f"Prop-Listen nicht gelesen: {e}", note="Die alte Datei bleibt.")], []
+    out.write_text(dump(lists), encoding="utf-8")
     lines = []
-    for key, n_ini, n_found, added, kept, fixed in rows:
-        if n_ini is None:
-            lines.append(f"{key}: fehlt in offsets.ini")
+    for key, n_now, n_found, added, kept, fixed in rows:
+        if n_now is None:
+            lines.append(f"{key}: fehlt in prop_lists.json")
         elif added:
-            lines.append(f"{key}: +{added} (jetzt {n_ini + added})")
-    return text, lines or ["Prop-Listen unverändert"]
+            lines.append(f"{key}: +{added} (jetzt {n_now + added})")
+    return {"prop_lists.json": out}, [], lines or ["Prop-Listen unverändert"]
 
 
 def race_vehicles(new_build: str, edition: str, work: Path, offline: Path):
@@ -89,7 +95,7 @@ def mprops(new_build: str, edition: str, work: Path, offline: Path):
     return {"mprops.json": out}, [], ["mprops.json: " + "; ".join(res.stdout.strip().splitlines()[:6])]
 
 
-EXTRACTORS = [race_vehicles, mprops]
+EXTRACTORS = [prop_lists, race_vehicles, mprops]
 
 
 def name_vehicles(items: list[Item]) -> None:

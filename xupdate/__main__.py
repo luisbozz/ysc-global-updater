@@ -219,14 +219,6 @@ def step_lists(st, work, edition, new_build, offline):
     if st.done("lists"):
         ok("schon gemacht")
         return
-    text = (work / "offsets.ini").read_text(encoding="utf-8")
-    try:
-        text, lines = extract.prop_lists(text, new_build)
-        (work / "offsets.ini").write_text(text, encoding="utf-8")
-        for line in lines:
-            ok(line)
-    except FileNotFoundError as e:
-        bad(f"Prop-Listen: {e}")
     files = {}
     for fn in extract.EXTRACTORS:
         got, items, lines = fn(new_build, edition, work, offline)

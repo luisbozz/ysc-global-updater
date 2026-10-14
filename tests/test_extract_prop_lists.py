@@ -14,7 +14,7 @@ def script(*lines: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-class RefreshIniTest(unittest.TestCase):
+class RefreshListsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = pathlib.Path(self.tmp.name)
@@ -32,20 +32,25 @@ class RefreshIniTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_once(self, text):
-        return E.refresh_ini(text, self.scripts, self.seed)
+    def run_once(self, lists):
+        return E.refresh_lists(lists, self.scripts, self.seed)
 
     def test_adds_the_rest_of_a_matching_condition_only(self):
-        text, rows = self.run_once("prop_model_booster='0'\n")
-        got = E.parse_value(text.split("'")[1], "hex")
+        lists, rows = self.run_once({"prop_model_booster": ["0"]})
+        got = E.parse_value(",".join(lists["prop_model_booster"]), "hex")
         self.assertEqual(got, {A, B, C})
         self.assertEqual(rows[0][3], 3)
 
     def test_second_run_changes_nothing(self):
-        once, _ = self.run_once("prop_model_booster=''\n")
+        once, _ = self.run_once({"prop_model_booster": []})
         twice, rows = self.run_once(once)
-        self.assertEqual(once, twice)
+        self.assertEqual(E.dump(once), E.dump(twice))
         self.assertEqual(rows[0][3], 0)
+
+    def test_missing_list_is_left_out(self):
+        lists, rows = self.run_once({"prop_model_booster": []})
+        self.assertEqual(set(lists), {"prop_model_booster"})
+        self.assertIsNone(rows[1][1])
 
     def test_all_digit_hex_is_read_as_hex(self):
         # "12345678" in a hex list is 0x12345678, not decimal
@@ -58,7 +63,7 @@ class RefreshIniTest(unittest.TestCase):
 
     def test_missing_scripts_raise_instead_of_emptying(self):
         with self.assertRaises(FileNotFoundError):
-            E.refresh_ini("prop_model_booster='A'\n", self.scripts / "nope", self.seed)
+            E.refresh_lists({"prop_model_booster": ["A"]}, self.scripts / "nope", self.seed)
 
 
 if __name__ == "__main__":
