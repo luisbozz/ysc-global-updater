@@ -47,7 +47,7 @@ import versions  # noqa: E402
 
 # The scripts the scrpatch toolchain patches at runtime.
 DUMP_SCRIPTS = (
-    "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
+    "creator", "fm_capture_creator", "fm_deathmatch_creator", "fm_lts_creator",
     "fm_race_creator", "fm_survival_creator", "fmmc_launcher",
     "public_mission_creator",
 )
