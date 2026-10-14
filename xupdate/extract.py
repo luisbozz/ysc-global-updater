@@ -5,6 +5,8 @@
 - race_vehicles.json: the race creator's vehicle classes incl. the DLC (ADLC) vehicles
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
 - mprops.json: the original prop-menu models per creator (tools/mprops_originals.py).
+- [ENTITYHANDLES] in offsets.ini: where each creator keeps the handles of its placed entities
+  (tools/extract_entity_handles.py), written straight into the work offsets.ini.
 
 More extractors go into EXTRACTORS: a function (new_build, edition, work dir, Xenvious'
 OfflineData/<edition> dir) -> (files to deploy {OfflineData-relative name: work file},
@@ -96,6 +98,27 @@ def mprops(new_build: str, edition: str, work: Path, offline: Path):
 
 
 EXTRACTORS = [prop_lists, race_vehicles, mprops]
+
+
+def entity_handles(new_build: str, work: Path, name: str = "offsets.ini"):
+    """[ENTITYHANDLES] into work/<name> -> (review items, report lines). A kind no create
+    function leads to is a review item: Xenvious then rebuilds for that kind instead of moving."""
+    from tools.extract_entity_handles import KINDS, set_section, value, values
+    ini = work / name
+    text = ini.read_text(encoding="utf-8")
+    vals = values(SCRIPTS / new_build, text)
+    ini.write_text(set_section(text, vals, new_build), encoding="utf-8")
+    items, lines = [], []
+    for script, found in vals.items():
+        # The Race Creator has no teams; the Mission Creator draws no spawn point decals.
+        missing = [k for k in KINDS if k not in found and not (k == "team" and script == "fm_race_creator")
+                   and not (k == "spawn" and script == "public_mission_creator")]
+        lines.append(f"[ENTITYHANDLES] {script}: {value(found)}")
+        if missing:
+            items.append(Item(id=f"handles:{script}", kind="info", title=f"[ENTITYHANDLES] {script}",
+                              question=f"Keine Handle-Arrays gefunden für: {', '.join(missing)}.",
+                              note="Xenvious baut für diese Arten neu auf, statt das Entity zu verschieben."))
+    return items, lines
 
 
 def name_vehicles(items: list[Item]) -> None:

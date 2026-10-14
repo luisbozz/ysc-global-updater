@@ -231,6 +231,10 @@ def step_lists(st, work, edition, new_build, offline):
         st.add(items)
         for line in lines:
             ok(line)
+    items, lines = extract.entity_handles(new_build, work)
+    st.add(items)
+    for line in lines:
+        ok(line)
     st.finish("lists", {"files": files})
 
 
