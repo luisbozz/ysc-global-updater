@@ -9,6 +9,7 @@ This proves the assembler encodes every operand kind correctly. It runs on:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import unittest
@@ -23,7 +24,9 @@ from scrasm.yscfull import YscFull  # noqa: E402
 from scrasm.functions import iter_functions  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "data" / "scrpatches.json"
+# The payloads ship with Xenvious; without a checkout that test is skipped.
+DATA = (Path(os.environ.get("XENVIOUS", "/opt/xenvious"))
+        / "Xenvious" / "OfflineData" / "legacy" / "scrpatches.json")
 DISASM = ROOT / "disasm"
 _PURE_HEX = re.compile(r"^([0-9A-Fa-f]{2}\s+)*[0-9A-Fa-f]{2}\s*$")
 
@@ -34,8 +37,9 @@ def _one_full():
 
 
 class AsmRoundTripTest(unittest.TestCase):
+    @unittest.skipUnless(DATA.is_file(), "no Xenvious checkout")
     def test_customfuncs_symbolic_roundtrip(self):
-        patches = json.loads(DATA.read_text())
+        patches = json.loads(DATA.read_text(encoding="utf-8-sig"))
         n = 0
         for p in patches:
             b = p.get("bytes_to_patch", "")

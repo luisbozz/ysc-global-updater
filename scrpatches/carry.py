@@ -95,7 +95,32 @@ def new_pattern(p: Pair, old_code: bytes, new_code: bytes, at: int, new_at: int,
                 break
             out.append("?" if toks[rel + k] == "?" else f"{new_code[pos + k]:02X}")
         pos += 1 + len(ni.operands)
-    return " ".join(out[:len(toks)])
+    out = out[:len(toks)]
+    return grow(new_code, new_at, out)
+
+
+def grow(code: bytes, at: int, toks: list, limit: int = 80) -> str:
+    """Extends a pattern by the instructions after it until it is unique (or ``limit``
+    tokens): operands that move between builds become wildcards, as in doctor."""
+    from doctor import is_volatile, safe_disassemble
+    pat = " ".join(toks)
+    if len(hits(code, pat)) <= 1:
+        return pat
+    for ins in safe_disassemble(code, at, limit + 16):
+        if ins.offset < len(toks):
+            continue
+        if ins.offset != len(toks):
+            break  # the pattern ended inside an instruction
+        toks.append(f"{code[at + ins.offset]:02X}")
+        wide_push = ins.name.startswith("PUSH_CONST_") and len(ins.operands) >= 3
+        if is_volatile(ins.name) or wide_push:
+            toks += ["?"] * len(ins.operands)
+        else:
+            toks += [f"{b:02X}" for b in code[at + ins.offset + 1:at + ins.offset + 1 + len(ins.operands)]]
+        pat = " ".join(toks)
+        if len(hits(code, pat)) == 1 or len(toks) >= limit:
+            break
+    return pat
 
 
 def carry_bytes(p: Pair, w_old: int, w_new: int, patch_hex: str, notes: list) -> str | None:
@@ -104,6 +129,11 @@ def carry_bytes(p: Pair, w_old: int, w_new: int, patch_hex: str, notes: list) ->
         notes.append("Patch-Bytes enthalten Platzhalter; Bytes unverändert übernommen")
         return patch_hex
     raw = bytes.fromhex(patch_hex.replace(" ", ""))
+    # The region the patch covers must still end on an instruction in the new build.
+    end_old = w_old + len(raw)
+    end_new, _ = _site(p, end_old) if p.a.instruction_at(end_old) is not None else (None, "")
+    if end_new is not None and end_new - w_new != len(raw):
+        notes.append(f"überschriebener Bereich ist jetzt {end_new - w_new} statt {len(raw)} Bytes lang")
     try:
         pins = disassemble(raw)
     except Exception:
@@ -147,11 +177,6 @@ def carry_bytes(p: Pair, w_old: int, w_new: int, patch_hex: str, notes: list) ->
             changed += 1
     if changed:
         notes.append(f"{changed} Operand(en) in den Patch-Bytes angepasst")
-    # The region the patch covers must still end on an instruction in the new build.
-    end_old = w_old + len(raw)
-    end_new, _ = _site(p, end_old) if p.a.instruction_at(end_old) is not None else (None, "")
-    if end_new is not None and end_new - w_new != len(raw):
-        notes.append(f"überschriebener Bereich ist jetzt {end_new - w_new} statt {len(raw)} Bytes lang")
     return " ".join(f"{b:02X}" for b in out)
 
 
@@ -177,6 +202,7 @@ def carry(patch: dict, old_build: str, new_build: str) -> Carried:
         from doctor import derive_pattern, safe_disassemble
         pat = derive_pattern(new_code, new_at, safe_disassemble(new_code, new_at, 96), 96)
         if pat:
+            pat = grow(new_code, new_at, pat.split())
             res.notes.append("Instruktionen an der Stelle geändert; Pattern neu abgeleitet")
     if not pat or hits(new_code, pat) != [new_at] or len(hits(_load(script, new_build), pat)) != 1:
         res.notes.append("kein eindeutiges Pattern an der neuen Stelle")

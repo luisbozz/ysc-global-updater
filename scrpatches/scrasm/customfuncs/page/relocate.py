@@ -198,14 +198,20 @@ def relocate(text: str, mv: Mover):
 
 
 def ini_numbers(path) -> dict:
-    """offsets.ini [OFFSETS] key (lower case, without OFFSET_) -> number, for %key deltas."""
-    sys.path.insert(0, str(Path("/opt/xenvious/tools/builddata")))
-    from builddata import is_number, number, parse_ini, member_name
-    ini = parse_ini(Path(path).read_text(encoding="utf-8-sig"))
+    """offsets.ini [OFFSETS] key (lower case, without OFFSET_) -> the address Xenvious makes
+    of it, for %key deltas."""
+    sys.path.insert(0, str(HERE.parents[4]))
+    from xupdate.offsets import offsets_values
+    from xupdate.paths import address
     out = {}
-    for (sec, low), v in ini.items():
-        if sec == "OFFSETS" and v.strip() and is_number(v):
-            out[member_name(ini.names[(sec, low)]).lower()] = number(v)
+    for low, (name, value) in offsets_values(Path(path).read_text(encoding="utf-8-sig")).items():
+        a = address(value)
+        if a is None:
+            try:
+                a = int(value, 0)
+            except ValueError:
+                continue
+        out[re.sub(r"^offset_", "", low)] = a
     return out
 
 

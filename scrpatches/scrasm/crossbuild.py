@@ -115,9 +115,19 @@ class Pair:
         self._start_to_k = {f.start_offset: k for k, f in enumerate(b.index.functions)}
 
     def call(self, addr: int):
+        """New start of the function that starts at ``addr`` in the old build."""
         if addr in self.amap:
             return self.amap[addr], self.tier[addr]
-        return None, "no match"
+        fa = self._func_at.get(addr) if hasattr(self, "_func_at") else None
+        if fa is None:
+            self._func_at = {f.start_offset: k for k, f in enumerate(self.a.index.functions)}
+            fa = self._func_at.get(addr)
+        if fa is None:
+            return None, "no function starts there"
+        fb, how = self.function(fa)
+        if fb is None:
+            return None, "no match"
+        return self.b.index.functions[fb].start_offset, how
 
     def string(self, off: int):
         """The same text in the new build's string table: (offset, how) or (None, why)."""
@@ -173,10 +183,16 @@ class Pair:
         hi = next((self._start_to_k[self.amap[fs_a[k].start_offset]]
                    for k in range(fa + 1, min(len(fs_a), fa + 50)) if fs_a[k].start_offset in self.amap), None)
         result = (None, "Funktion im neuen Build nicht gefunden")
-        if lo is not None and hi is not None and hi - lo <= 40:
+        if lo is None and hi is not None:
+            lo = -1
+        if lo is not None and hi is None:
+            hi = len(fs_b)
+        if lo is not None and hi is not None and hi - lo <= 200:
             mine = self._names(self.a.index, fs_a[fa])
             scored = []
             for k in range(lo + 1, hi):
+                if (fs_b[k].params, fs_b[k].returns) != (fs_a[fa].params, fs_a[fa].returns):
+                    continue
                 sm = difflib.SequenceMatcher(None, mine, self._names(self.b.index, fs_b[k]), autojunk=False)
                 if sm.real_quick_ratio() >= 0.6 and sm.quick_ratio() >= 0.6:
                     scored.append((sm.ratio(), k))
@@ -185,6 +201,27 @@ class Pair:
                 result = (scored[0][1], f"neighbours, {scored[0][0]:.0%} alike")
         self._near[fa] = result
         return result
+
+    def likeliest(self, addr: int):
+        """(new function start, similarity) of the most alike function with the same params
+        and returns between the matched neighbours, however low; for a person to judge."""
+        fs_a, fs_b = self.a.index.functions, self.b.index.functions
+        fa = next((k for k, f in enumerate(fs_a) if f.start_offset == addr), None)
+        if fa is None:
+            return None, 0.0
+        lo = next((self._start_to_k[self.amap[fs_a[k].start_offset]]
+                   for k in range(fa - 1, max(-1, fa - 50), -1) if fs_a[k].start_offset in self.amap), -1)
+        hi = next((self._start_to_k[self.amap[fs_a[k].start_offset]]
+                   for k in range(fa + 1, min(len(fs_a), fa + 50)) if fs_a[k].start_offset in self.amap), len(fs_b))
+        mine = self._names(self.a.index, fs_a[fa])
+        best = (None, 0.0)
+        for k in range(lo + 1, min(hi, lo + 201)):
+            if (fs_b[k].params, fs_b[k].returns) != (fs_a[fa].params, fs_a[fa].returns):
+                continue
+            r = difflib.SequenceMatcher(None, mine, self._names(self.b.index, fs_b[k]), autojunk=False).ratio()
+            if r > best[1]:
+                best = (fs_b[k].start_offset, r)
+        return best
 
     def counterpart(self, i: int):
         """(new instruction index, how the function was matched) or (None, why)."""

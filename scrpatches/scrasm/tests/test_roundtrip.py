@@ -1,13 +1,15 @@
 """Round-trip tests: disassemble(bytes) -> assemble() must be byte-identical.
 
-Uses the real ``bytes_to_patch`` blobs shipped in
-``scrpatches/data/scrpatches.json`` (the ``customfuncs`` payloads are whole
-GTA5 functions and thus exercise a wide slice of the opcode table).
+Uses the real ``bytes_to_patch`` blobs shipped with Xenvious
+(``Xenvious/OfflineData/legacy/scrpatches.json``; the payloads are whole
+functions and thus exercise a wide slice of the opcode table). Skipped without
+a Xenvious checkout (``XENVIOUS``, default /opt/xenvious).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import unittest
@@ -19,19 +21,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scrasm.disasm import disassemble, assemble, parse_hex  # noqa: E402
 from scrasm.opcodes import DecodeError  # noqa: E402
 
-DATA = Path(__file__).resolve().parents[2] / "data" / "scrpatches.json"
+DATA = (Path(os.environ.get("XENVIOUS", "/opt/xenvious"))
+        / "Xenvious" / "OfflineData" / "legacy" / "scrpatches.json")
 
 _PURE_HEX = re.compile(r"^([0-9A-Fa-f]{2}\s+)*[0-9A-Fa-f]{2}\s*$")
 
 
 def _pure_hex_blobs():
-    patches = json.loads(DATA.read_text())
+    patches = json.loads(DATA.read_text(encoding="utf-8-sig"))
     for p in patches:
         b = p.get("bytes_to_patch", "")
         if b and "{" not in b and "?" not in b and _PURE_HEX.match(b):
             yield p
 
 
+@unittest.skipUnless(DATA.is_file(), f"no Xenvious checkout at {DATA}")
 class RoundTripTest(unittest.TestCase):
     def test_data_present(self):
         self.assertTrue(DATA.exists(), f"missing {DATA}")

@@ -602,7 +602,7 @@ def main() -> int:
     if not old_build:
         raise SystemExit("no earlier build in disasm/ -- pass --old <build>")
 
-    patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8"))
+    patches = json.loads(pathlib.Path(args.patches).read_text(encoding="utf-8-sig"))
 
     selected = []
     for p in patches:

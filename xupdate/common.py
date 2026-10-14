@@ -67,10 +67,11 @@ def read_lines(path: str) -> tuple:
     return tuple(Path(path).read_text(encoding="utf-8", errors="replace").splitlines())
 
 
-def snippet(path: Path | str, line: int, mark: str = "") -> Snippet:
+def snippet(path: Path | str, line: int, mark: str = "", before: int = CONTEXT_LINES,
+            after: int = CONTEXT_LINES) -> Snippet:
     lines = read_lines(str(path))
-    a = max(0, line - 1 - CONTEXT_LINES)
-    b = min(len(lines), line + CONTEXT_LINES)
+    a = max(0, line - 1 - before)
+    b = min(len(lines), line + after)
     return Snippet(str(path), line, list(lines[a:b]), a + 1, mark)
 
 

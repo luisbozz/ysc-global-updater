@@ -57,7 +57,10 @@ def table(code, func):
     for cls, target in next_switch(code, land).switch_cases():
         idx = next_switch(code, target)
         if idx is not None:
-            out[cls] = [leaf_hash(code, t) for _, t in sorted(idx.switch_cases())]
+            # A case that does not return a model hash right away (older builds have a few)
+            # is no vehicle slot; leaving it out keeps the rest of the class.
+            hashes = [leaf_hash(code, t) for _, t in sorted(idx.switch_cases())]
+            out[cls] = [h for h in hashes if h is not None]
     return out
 
 

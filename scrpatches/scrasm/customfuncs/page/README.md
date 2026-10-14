@@ -1,8 +1,8 @@
-# Payloads of the custom funcs (Enhanced 1.0.1158, Legacy 1.73-3889; not in data/ yet)
+# Payloads of the custom funcs
 
 Xenvious' `scrpatches.json` of each edition carries the customfuncs payload of each creator in one
-entry ("custom funcs in extra page", `page: true`, `page_base`). Not tracked by
-`build_customfuncs.py`.
+entry ("custom funcs in extra page", `page: true`, `page_base`). The sources here are the only
+readable form; `src/<edition>/BUILD` names the build they are written for.
 
 - Enhanced: the payload is the first extra code page the creator gets when it loads (ScriptSpace,
   `[SCRIPTSPACE]` in offsets.ini).
@@ -10,7 +10,7 @@ entry ("custom funcs in extra page", `page: true`, `page_base`). Not tracked by
   the vehicle mod preset table (`[SCRIPTVICTIM]` in Xenvious' legacy offsets.ini: function, payload,
   data page, string page array). The patch "give up the vehicle preset table" makes the table return
   at once. The hook "run patched loop func without args" keeps the draw call it replaces (dl_hook
-  makes it). `victims/layout.py <build>` prints those values (call graph and dominator search in `victims/dom.py`; the table is found by its plate string
+  makes it). `victims/layout.py <build>` prints those values (xupdate writes them into [SCRIPTVICTIM]) (call graph and dominator search in `victims/dom.py`; the table is found by its plate string
   "47BQT444").
 
 Files:
@@ -28,3 +28,7 @@ Files:
   the page (and on Legacy that the payload ends before the string page array), and points the
   patches that CALL into the page (`HOOKS`) at their labels. Without `--write` it only reports;
   `--edition` picks the edition, `--target` the scrpatches.json (default: Xenvious' one).
+- `relocate.py`: moves the sources to another build (CALL targets by function fingerprint, strings
+  by text, statics/globals/enum constants by the votes of Rockstar's code at the aligned places,
+  `; %key` by the offsets.ini delta, `; ~IOFFSET n` to let only uses next to that instruction vote).
+  Checked Legacy 1.73-3889 <-> Enhanced 1.0.1158 both ways: all six sources come out as written by hand.
