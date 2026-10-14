@@ -6,6 +6,7 @@
 - race_vehicles.json: the race creator's vehicle classes incl. the DLC (ADLC) vehicles
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
 - mprops.json: the original prop-menu models per creator (tools/mprops_originals.py).
+- rule_fields.json: what moves with a rule (tools/extract_rule_fields.py).
 - [ENTITYHANDLES] in offsets.ini: where each creator keeps the handles of its placed entities
   (tools/extract_entity_handles.py), written straight into the work offsets.ini.
 
@@ -112,7 +113,26 @@ def mprops(new_build: str, edition: str, work: Path, offline: Path):
     return {"mprops.json": out}, [], ["mprops.json: " + "; ".join(res.stdout.strip().splitlines()[:6])]
 
 
-EXTRACTORS = [prop_lists, race_vehicles, mprops]
+def rule_fields(new_build: str, edition: str, work: Path, offline: Path):
+    """rule_fields.json: what moves with a rule (tools/extract_rule_fields.py)."""
+    out = work / "rule_fields.json"
+    from tools.extract_rule_fields import Extractor
+    try:
+        ex = Extractor(SCRIPTS / new_build)
+        res = ex.run()
+    except (FileNotFoundError, StopIteration, ValueError, KeyError) as e:
+        return {}, [Item(id="list:rule_fields", kind="info", title="rule_fields.json",
+                         question=f"Rule-Felder nicht gelesen: {e!r}",
+                         note="Die alte Datei bleibt; Rules verschieben kann dann falsche Felder treffen.")], []
+    out.write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
+    items = [Item(id=f"list:rule_fields:{k}", kind="info", title="rule_fields.json", question=n)
+             for k, n in enumerate(ex.notes)]
+    line = (f"rule_fields.json: {len(res['data'])} Daten, {len(res['bits'])} Bitsets, "
+            f"{len(res['prio'])} Prioritäten, {len(res['refs'])} Verweise")
+    return {"rule_fields.json": out}, items, [line]
+
+
+EXTRACTORS = [prop_lists, race_vehicles, mprops, rule_fields]
 
 
 def entity_handles(new_build: str, work: Path, name: str = "offsets.ini"):
