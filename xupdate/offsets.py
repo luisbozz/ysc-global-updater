@@ -161,5 +161,57 @@ def apply_answers(ini_text: str, answers: dict) -> str:
     return "".join(out)
 
 
+_NEXT = re.compile(r'^(\s*)(OFFSET_\w*next\w*)(\s*=\s*)"?(\d+)"?(\s*(?:;.*)?)$', re.IGNORECASE | re.MULTILINE)
+
+
+def sync_strides(old_text: str, new_text: str) -> tuple[str, list[str]]:
+    """Stride keys (``spawn_NEXT = 71``, ``team_NEXT_settings``) are plain numbers, which the
+    migration leaves alone. When the arrays they step through changed their stride
+    (``[i /*71*/]`` -> ``[i /*70*/]``), the key follows. Which arrays: the paths of its own
+    family (``spawn_*``) first, else every path with that stride. Only paths the migration
+    changed count (one it left as it was may not have moved yet); when they disagree, or one
+    keeps the old stride, the key stays and a note says so. Returns the text and the notes."""
+    from . import paths
+    old_vals = {k: v for k, (_, v) in offsets_values(old_text).items()}
+    new_vals = {k: v for k, (_, v) in offsets_values(new_text).items()}
+    old_next = {m.group(2).lower(): int(m.group(4)) for m in _NEXT.finditer(old_text)}
+
+    def strides(old: int, family: str) -> set:
+        found = set()
+        for k, ov in old_vals.items():
+            nv = new_vals.get(k)
+            if nv is None or nv == ov or not k.startswith(family):
+                continue
+            po, pn = paths.parse(ov), paths.parse(nv)
+            if not po or not pn or len(po[2]) != len(pn[2]):
+                continue
+            for to, tn in zip(po[2], pn[2]):
+                if to.kind != "f" and to.stride == old and tn.stride is not None:
+                    found.add(tn.stride)
+        return found
+
+    out, notes = [], []
+    for sec, line in section_of_lines(new_text):
+        m = _NEXT.match(line.rstrip("\r\n")) if sec == "OFFSETS" else None
+        old = old_next.get(m.group(2).lower()) if m else None
+        if m and old is not None and int(m.group(4)) == old:
+            key = m.group(2)
+            low = key.lower()
+            family = low[:low.rindex("next")].rstrip("_") if low.endswith("next") else None
+            found = strides(old, family) if family and family != "offset" else set()
+            how = f"Stride der {family[7:]}*-Pfade" if found else "Stride aller Pfade mit /*" + str(old) + "*/"
+            if not found:
+                found = strides(old, "offset_")
+            if len(found) == 1 and old not in found:
+                new = found.pop()
+                eol = "\r\n" if line.endswith("\r\n") else "\n"
+                line = f"{m.group(1)}{key}{m.group(3)}{new}{m.group(5)}{eol}"
+                notes.append(f"{key}: {old} -> {new} ({how})")
+            elif len(found) > 1:
+                notes.append(f"{key}: Pfade nennen verschiedene Strides {sorted(found)}, bleibt {old}")
+        out.append(line)
+    return "".join(out), notes
+
+
 def load_report(work: Path) -> dict:
     return json.loads((work / "migrate-report.json").read_text(encoding="utf-8"))

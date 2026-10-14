@@ -266,8 +266,20 @@ def step_build(st, work, edition, new_build, offline):
         if it.kind == "offset" and it.answer:
             answers[it.title] = it.guess if it.answer == "übernehmen" else it.answer
     text = offsets.apply_answers(text, answers)
+    text, notes = offsets.sync_strides((work / "offsets.source.ini").read_text(encoding="utf-8"), text)
     (work / "offsets.final.ini").write_text(text, encoding="utf-8")
     ok(f"{len(answers)} Offsets aus der Prüfung übernommen")
+    for n in notes:
+        (bad if "verschiedene" in n else ok)(n)
+    if answers or notes:
+        # The handle arrays are found through the data arrays' globals; step 5 read them
+        # before the review.
+        items, lines = extract.entity_handles(new_build, work, "offsets.final.ini")
+        text = (work / "offsets.final.ini").read_text(encoding="utf-8")
+        st.items = [it for it in st.items if not it.id.startswith("handles:")]
+        st.add(items)
+        for line in lines:
+            ok(line)
 
     for name in PATCH_FILES:
         if not (work / name).is_file():
