@@ -2,7 +2,8 @@
 
 - prop_lists.json, the prop model lists (boosters, blacklisted props, ...): from the
   decompiled creator scripts (tools/extract_prop_lists.py); capture_object_models, the models a
-  capture object keeps on load (tools/extract_capture_models.py).
+  capture object keeps on load (tools/extract_capture_models.py); weapon_pickup_models, the
+  pickup types a weapon keeps on load (tools/extract_pickup_models.py).
 - race_vehicles.json: the race creator's vehicle classes incl. the DLC (ADLC) vehicles
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
 - mprops.json: the original prop-menu models per creator (tools/mprops_originals.py).
@@ -36,21 +37,24 @@ def prop_lists(new_build: str, edition: str, work: Path, offline: Path):
         return {}, [Item(id="list:prop_lists", kind="info", title="prop_lists.json",
                          question=f"Prop-Listen nicht gelesen: {e}", note="Die alte Datei bleibt.")], []
     items = []
-    # The models a capture object keeps when the Capture Creator loads the job.
+    # Models the creators keep when they load a job; anything else they replace.
     from tools.extract_capture_models import capture_models
-    key = "capture_object_models"
-    try:
-        lists[key] = capture_models(SCRIPTS / new_build)
-    except (FileNotFoundError, ValueError) as e:
-        if key in current:
-            lists[key] = current[key]
-        items.append(Item(id=f"list:{key}", kind="info", title=key,
-                          question=f"Liste nicht gelesen: {e}", note="Die alte Liste bleibt."))
+    from tools.extract_pickup_models import pickup_models
+    read = {"capture_object_models": capture_models, "weapon_pickup_models": pickup_models}
+    for key, extract in read.items():
+        try:
+            lists[key] = extract(SCRIPTS / new_build)
+        except (FileNotFoundError, ValueError) as e:
+            if key in current:
+                lists[key] = current[key]
+            items.append(Item(id=f"list:{key}", kind="info", title=key,
+                              question=f"Liste nicht gelesen: {e}", note="Die alte Liste bleibt."))
     out.write_text(dump(lists), encoding="utf-8")
     lines = []
-    if key in lists and lists[key] != current.get(key):
-        old, new = set(current.get(key, [])), set(lists[key])
-        lines.append(f"{key}: +{len(new - old)} -{len(old - new)} (jetzt {len(new)})")
+    for key in read:
+        if key in lists and lists[key] != current.get(key):
+            old, new = set(current.get(key, [])), set(lists[key])
+            lines.append(f"{key}: +{len(new - old)} -{len(old - new)} (jetzt {len(new)})")
     for key, n_now, n_found, added, kept, fixed in rows:
         if n_now is None:
             lines.append(f"{key}: fehlt in prop_lists.json")
