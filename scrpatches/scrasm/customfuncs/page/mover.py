@@ -21,7 +21,7 @@ frame tries again.
 
 dl_main calls mv_main every frame; the state makes it run once per request.
 
-Data page (string page 63, see drawer.py), in the space of the 48th drawer entry:
+Data page (string page 63, see drawer.py), after the compact labels:
   0x3700  state     Xenvious writes 1 (request); mv_main writes 2 (done) or 3 (no such entity)
   0x3708  mode      1 SET_ENTITY_COORDS, 2 SET_ENTITY_COORDS_NO_OFFSET, 3 remove the decal
   0x3710  handle    entity or decal

@@ -19,8 +19,8 @@ Files:
   model, and per creator areas, refresh, race tuning and garage). Their variables live in the data
   page (string page 63) instead of custom globals: variable n at `0xFC018 + n * 8`, numbered like
   the old `Global_2884084 + n` (layout in `drawer.py`).
-- `drawer.py`: generates the shape drawer (dl_hook, dl_main, dl_quad, dl_entry) that `build_page.py`
-  appends to every payload. Its labels draw in graphics order 1 behind the pause menu.
+- `drawer.py`: generates the shape drawer (dl_hook, dl_main, dl_quad, dl_entry, dl_label) that
+  `build_page.py` appends to every payload: 31 shapes, then up to 80 compact labels (entity numbers). Its labels draw in graphics order 1 behind the pause menu.
 - `zonelabel.py`: generates zl_wrap/zl_label for the creators that draw zones (LTS, Capture, DM,
   Race): "(Zone n)  <type>" over each zone the game draws, in the zone's colour, fading with
   distance. The hook "zone labels" points the zone loop's draw CALL at zl_wrap.
@@ -38,7 +38,7 @@ Files:
   start point it removes the decal, which the creator adds again. So Xenvious shows a changed pose
   without a rebuild (EntityMover). Mode 4 syncs a block of props for the Advanced Placement preview:
   missing entities are created into the creator's handle array, the rest moved, the ones after the
-  block deleted. It uses the space of the 48th drawer entry.
+  block deleted. It uses 0x3700, after the compact labels.
 - `build_page.py`: assembles source + drawer + zone label + datafile probe + teleport + mover at each `page_base`, checks every CALL into
   the page (and on Legacy that the payload ends before the string page array), and points the
   patches that CALL into the page (`HOOKS`) at their labels. Without `--write` it only reports;
