@@ -8,6 +8,7 @@
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
 - mprops.json: the original prop-menu models per creator (tools/mprops_originals.py).
 - rule_fields.json: what moves with a rule (tools/extract_rule_fields.py).
+- rule_options.json: bit numbers of the Rules page's yes/no options (tools/extract_rule_options.py).
 - [ENTITYHANDLES] in offsets.ini: where each creator keeps the handles of its placed entities
   (tools/extract_entity_handles.py), written straight into the work offsets.ini.
 
@@ -136,7 +137,26 @@ def rule_fields(new_build: str, edition: str, work: Path, offline: Path):
     return {"rule_fields.json": out}, items, [line]
 
 
-EXTRACTORS = [prop_lists, race_vehicles, mprops, rule_fields]
+def rule_options(new_build: str, edition: str, work: Path, offline: Path):
+    """rule_options.json: bit numbers of the Rules page's yes/no options (tools/extract_rule_options.py)."""
+    out = work / "rule_options.json"
+    from tools.extract_rule_options import missing, rule_options as extract
+    try:
+        res = extract(SCRIPTS / new_build)
+    except (FileNotFoundError, ValueError) as e:
+        return {}, [Item(id="list:rule_options", kind="info", title="rule_options.json",
+                         question=f"Rule-Optionen nicht gelesen: {e}", note="Die alte Datei bleibt.")], []
+    out.write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
+    items = []
+    gone = missing(res)
+    if gone:
+        items.append(Item(id="list:rule_options:missing", kind="info", title="rule_options.json",
+                          question="Diese Optionen gibt es in diesem Build nicht, Xenvious blendet sie aus: "
+                                   + ", ".join("PMCT_" + g for g in gone)))
+    return {"rule_options.json": out}, items, [f"rule_options.json: {len(res)} Optionen"]
+
+
+EXTRACTORS = [prop_lists, race_vehicles, mprops, rule_fields, rule_options]
 
 
 def entity_handles(new_build: str, work: Path, name: str = "offsets.ini"):
