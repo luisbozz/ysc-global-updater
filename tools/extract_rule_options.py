@@ -37,10 +37,27 @@ OPTIONS = {
     "GC_AGGRO": "rl_aggro", "OB_CHASE": "rl_block",
     "ODO_NWEP": "rl_nwep", "ODO_RDAR": "rl_radar",
     "OMF_BOC": "rl_boc",
+    # Team abilities (beast mode), per rule: func_4810 for "Active Objectives", func_5001 for the
+    # abilities, func_4996 for "Invisibility Objective Overrides"; the field is the whole rule
+    # array (&f_8504), the creator sets the bit on each rule.
+    "AB_BSTS_ON": "irbs5", "BST_HELTH": "irbs5", "BST_DMG": "irbs5", "BST_MOV": "rl_boc",
+    "BST_JMP": "irbs5", "BST_SPD": "irbs5", "BST_STELO": "irbs5",
+    # Hint cam per rule: func_4810("PMCH_OOHCAM", &(... .f_8648), 0, "PMC_SEL_DBLED", ...), set = off.
+    "OOHCAM": "rl_aggro",
 }
 
 OFF = {"PMC_SEL_OFF", "PMC_SEL_NO", "PMC_SEL_DBLED"}
 _CALL = re.compile(r'(func_\d+)\("PMCT_(\w+)",\s*[^,]+,\s*&\(?Global_\d+\.f_\d+\[[^\]]+\]\.f_(\d+)\[[^\]]+\]\)?,\s*(\d+)\s*,\s*("[^"]*"|\d+|\w+)\s*,\s*("[^"]*"|\d+|\w+)\s*,\s*(-?\w+)\)')
+
+
+# Bits edited per rule array (beast abilities, hint cam): func_5001("PMCT_BST_HELTH", "PMCH_BST_HELTH", 0, &(Global_4718592.f_3838[t /*26988*/].f_8504), 11);
+# func_4996("PMCT_BST_STELO", "PMCT_BST_OSTEL", &(... .f_8504), 14); func_4810("PMCH_AB_BSTS_ON", &(... .f_8504), 7, ...).
+_ARRAY = r'&\(Global_\d+\.f_\d+\[[^\]]+\]\.f_(\d+)\)'
+_BEAST = [
+    re.compile(r'func_\d+\("PMCT_(BST_\w+)",\s*"PMCH_\w+",\s*\d+,\s*' + _ARRAY + r',\s*(\d+)\)'),
+    re.compile(r'func_\d+\("PMCT_(BST_STEL)O",\s*"\w+",\s*' + _ARRAY + r',\s*(\d+)\)'),
+    re.compile(r'func_\d+\("PMCH_(\w+)",\s*' + _ARRAY + r',\s*(\d+),\s*("[^"]*")'),
+]
 
 
 def rule_options(scripts: pathlib.Path) -> dict:
@@ -64,6 +81,18 @@ def rule_options(scripts: pathlib.Path) -> dict:
         if label in found and found[label] != entry:
             raise ValueError(f"PMCT_{label} edits two different bits: {found[label]} / {entry}")
         found[label] = entry
+    for pattern in _BEAST:
+        for m in pattern.finditer(text):
+            label, field, bit, *shown = m.groups()
+            on_when_clear = bool(shown) and shown[0].strip('"') in OFF   # func_4810: label shown while set
+            if label == "BST_STEL":
+                label = "BST_STELO"
+            if label not in OPTIONS:
+                continue
+            entry = {"key": OPTIONS[label], "field": int(field), "bit": int(bit), "on_when_clear": on_when_clear}
+            if label in found and found[label] != entry:
+                raise ValueError(f"PMCT_{label} edits two different bits: {found[label]} / {entry}")
+            found[label] = entry
     if not found:
         raise ValueError(f"no objective menu option found in {SCRIPT}")
     return dict(sorted(found.items()))
