@@ -20,6 +20,7 @@ from scrasm.disasm import disassemble
 import datafile
 import drawer
 import respawn
+import ruleticker
 import saveresult
 import teleport
 import mover
@@ -151,9 +152,12 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
             if test:
                 # The resurrect native has to be in the script's native table.
                 rs = respawn.NATIVE in nat and s in respawn.CONTROLLERS
-                asm += "\n" + teleport.gen_test(test, rs)
+                rt = ruleticker.available(nat)
+                asm += "\n" + teleport.gen_test(test, rs, rt)
                 if rs:
                     asm += "\n" + respawn.gen(s)
+                if rt:
+                    asm += "\n" + ruleticker.gen()
             try:
                 zone = zonelabel.site(full)
             except ValueError as e:
