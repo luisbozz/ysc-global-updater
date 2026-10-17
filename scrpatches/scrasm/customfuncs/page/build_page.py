@@ -19,6 +19,7 @@ from scrasm.asm import assemble_text, _tokenize, _size
 from scrasm.disasm import disassemble
 import datafile
 import drawer
+import saveresult
 import teleport
 import mover
 import zonelabel
@@ -53,6 +54,21 @@ HOOKS = {
     ("fm_capture_creator", "zone labels"): "zl_wrap",
     ("fm_deathmatch_creator", "zone labels"): "zl_wrap",
     ("fm_race_creator", "zone labels"): "zl_wrap",
+    ("fm_lts_creator", "save result"): "sv_result",
+    ("fm_capture_creator", "save result"): "sv_result",
+    ("fm_deathmatch_creator", "save result"): "sv_result",
+    ("fm_survival_creator", "save result"): "sv_result",
+    ("fm_race_creator", "save result"): "sv_result",
+    ("fm_lts_creator", "publish result"): "sv_publish",
+    ("fm_capture_creator", "publish result"): "sv_publish",
+    ("fm_deathmatch_creator", "publish result"): "sv_publish",
+    ("fm_survival_creator", "publish result"): "sv_publish",
+    ("fm_race_creator", "publish result"): "sv_publish",
+    ("fm_lts_creator", "update result"): "sv_update",
+    ("fm_capture_creator", "update result"): "sv_update",
+    ("fm_deathmatch_creator", "update result"): "sv_update",
+    ("fm_survival_creator", "update result"): "sv_update",
+    ("fm_race_creator", "update result"): "sv_update",
 }
 # Legacy keeps the draw call its hook replaces (dl_hook makes it); the hook site, its CALL at +0x17.
 LOOP_HOOK = "61 ? ? ? 41 ? 77 58 11 00"
@@ -128,6 +144,8 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
                 asm += "\n" + datafile.gen()
             asm += "\n" + teleport.gen()
             asm += "\n" + mover.gen()
+            if s in saveresult.SCRIPTS:
+                asm += "\n" + saveresult.gen(nat)
             test = teleport.test_site(full.code) if s in teleport.TEST_SCRIPTS else None
             if test:
                 asm += "\n" + teleport.gen_test(test)
