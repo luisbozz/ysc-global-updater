@@ -6,7 +6,7 @@ it, LOAD reads one 8 byte slot (ints and floats in the low 4 bytes).
 
 Data page layout (byte offsets):
   0x000  "STRING\\0"      text label for BEGIN_TEXT_COMMAND_DISPLAY_TEXT
-  0x008  count            entries to draw (capped at 47)
+  0x008  count            entries to draw (capped at MAX)
   0x010  heartbeat        +1 every frame the drawer runs
   0x018  variables        what the customfuncs share with Xenvious, one 8 byte slot each, in
                           the order of the custom globals the Legacy payloads use
@@ -18,11 +18,24 @@ Data page layout (byte offsets):
            0x090  garage slot, 0x098 garage result
            0x0B0  garage list (100 models)
            0x3D8  garage vehicle (the creator's personal vehicle struct, up to 0x7FF)
-  0x800  entries          0x100 bytes each, slot k at +k*8 (47 of them)
+  0x2700 label count      compact labels (entity numbers), capped at LMAX; drawn up to 55 m
+                          from the camera, fading from 35 m
   0x3700 entity mover      state, kind, model, old/new position, rotation (mover.py)
+  0x3780 rule notes       line count (ruleticker.py)
+  0x37A0 cloud results    create, publish, update: result and count of refusals (saveresult.py)
   0x3800 zone type names  count, then 30 entries of 0x40: +0 type, +8 name (zonelabel.py)
   0x3F88 teleport         state, x, y, z (teleport.py)
+  0x3FA8 respawn          dead since, respawns (respawn.py)
   0x3FC8 datafile probe   state, root, probe, array, keys (datafile.py)
+
+The entries and the compact labels lie in the drawer space Xenvious allocates in the game process
+(64 KB, string pages 59 to 62, PUSH_CONST_U24 0xEC000 + offset; ScriptSpace.SwitchExtra):
+  0x0000 entries          0x100 bytes each, slot k at +k*8 (MAX of them)
+  0x8000 labels           0x30 bytes each: +0 x, +4 y, +8 z (floats), +12 r, +16 g, +20 b,
+                          +24 text (24 bytes, NUL terminated)
+  0xF800 rule notes       4 lines of 0x80 bytes, NUL terminated (ruleticker.py)
+Until Xenvious has set the space up those string pages point at the data page, so a stray read
+stays in our own memory; Xenvious writes the counts only once the space is there.
 
 Entry slots:
   0 kind     0 off, 1 prism, 2 marker, 3 text only
@@ -39,9 +52,16 @@ Entry slots:
 DATA = 0xFC000
 COUNT = DATA + 0x08
 BEAT = DATA + 0x10
-ENTRIES = DATA + 0x800
+EXTRA = 0xEC000     # string page 59
+ENTRIES = EXTRA
 STRIDE = 0x100
-MAX = 47           # the 48th entry's space holds the entity mover (mover.py)
+MAX = 128          # 0x0000..0x8000 of the drawer space; the labels follow
+LCOUNT = DATA + 0x2700
+LABELS = EXTRA + 0x8000
+LSTRIDE = 0x30
+LMAX = 640         # 0x8000..0xF800
+LTEXT = 24
+LNEAR, LFAR = 35.0, 55.0   # labels fade out between these distances to the camera (m)
 COPY = 25          # slots 0..24 go into the frame; STORE_N takes at most 25
 TEXT = 25 * 8
 
@@ -97,9 +117,9 @@ def gen(fn0: int | None, keep: tuple[int, int, int] | None = None, calls: tuple[
     a("  LOAD")
     a("  LOCAL_U8_STORE 3")
     a("  LOCAL_U8_LOAD 3")
-    a(f"  PUSH_CONST_U8 {MAX}")
+    a(f"  PUSH_CONST_S16 {MAX}")
     a("  IGT_JZ dl_m_n")
-    a(f"  PUSH_CONST_U8 {MAX}")
+    a(f"  PUSH_CONST_S16 {MAX}")
     a("  LOCAL_U8_STORE 3")
     a("dl_m_n:")
     a("  PUSH_CONST_0")
@@ -119,7 +139,122 @@ def gen(fn0: int | None, keep: tuple[int, int, int] | None = None, calls: tuple[
     a("  LOCAL_U8_STORE 2")
     a("  J dl_m_loop")
     a("dl_m_end:")
+    # compact labels
+    a(f"  PUSH_CONST_U24 0x{LCOUNT:X}")
+    a("  STRING")
+    a("  LOAD")
+    a("  LOCAL_U8_STORE 3")
+    a("  LOCAL_U8_LOAD 3")
+    a(f"  PUSH_CONST_S16 {LMAX}")
+    a("  IGT_JZ dl_m_ln")
+    a(f"  PUSH_CONST_S16 {LMAX}")
+    a("  LOCAL_U8_STORE 3")
+    a("dl_m_ln:")
+    a("  PUSH_CONST_0")
+    a("  LOCAL_U8_STORE 2")
+    a("dl_m_lloop:")
+    a("  LOCAL_U8_LOAD 2")
+    a("  LOCAL_U8_LOAD 3")
+    a("  ILT_JZ dl_m_lend")
+    a("  LOCAL_U8_LOAD 2")
+    a(f"  PUSH_CONST_U8 {LSTRIDE}")
+    a("  IMUL")
+    a(f"  PUSH_CONST_U24 0x{LABELS:X}")
+    a("  IADD")
+    a("  CALL dl_label")
+    a("  LOCAL_U8_LOAD 2")
+    a("  IADD_U8 1")
+    a("  LOCAL_U8_STORE 2")
+    a("  J dl_m_lloop")
+    a("dl_m_lend:")
     a("  LEAVE 0, 0")
+
+    # ---- dl_label(e): e = string index of a compact label ----
+    # locals: 0 e, 1 ret, 2 fp, 3 screen x, 4 screen y, 5 alpha, 6-8 offset to the camera,
+    # 9 squared distance (no SQRT in the native tables). Nothing beyond LFAR, fading from LNEAR,
+    # like the zone labels: from far up the numbers of a whole base would be one blot.
+    a("dl_label:")
+    a("  ENTER 1, 10")
+
+    def field(off):            # pushes the 4 byte value at e + off (low half of an 8 byte LOAD)
+        a("  LOCAL_U8_LOAD 0")
+        if off:
+            a(f"  IADD_U8 {off}")
+        a("  STRING")
+        a("  LOAD")
+
+    for off in (0, 4, 8):
+        field(off)
+    a("  NATIVE 0, 3, @CAM::GET_FINAL_RENDERED_CAM_COORD")
+    a("  VSUB")
+    a("  PUSH_CONST_3")
+    a("  LOCAL_U8 6")
+    a("  STORE_N")
+    for k in (6, 7, 8):
+        a(f"  LOCAL_U8_LOAD {k}")
+        a(f"  LOCAL_U8_LOAD {k}")
+        a("  FMUL")
+    a("  FADD")
+    a("  FADD")
+    a("  LOCAL_U8_STORE 9")
+    a("  LOCAL_U8_LOAD 9")
+    a(f"  PUSH_CONST_F {LFAR * LFAR}")
+    a("  FLT")
+    a("  JZ dl_l_end")
+    a("  PUSH_CONST_U8 255")
+    a("  LOCAL_U8_STORE 5")
+    a("  LOCAL_U8_LOAD 9")
+    a(f"  PUSH_CONST_F {LNEAR * LNEAR}")
+    a("  FGT")
+    a("  JZ dl_l_near")
+    a(f"  PUSH_CONST_F {LFAR * LFAR}")
+    a("  LOCAL_U8_LOAD 9")
+    a("  FSUB")
+    a(f"  PUSH_CONST_F {255.0 / (LFAR * LFAR - LNEAR * LNEAR)}")
+    a("  FMUL")
+    a("  F2I")
+    a("  LOCAL_U8_STORE 5")
+    a("dl_l_near:")
+
+    for off in (0, 4, 8):
+        field(off)
+    a("  LOCAL_U8 3")
+    a("  LOCAL_U8 4")
+    a("  NATIVE 5, 1, @GRAPHICS::GET_SCREEN_COORD_FROM_WORLD_COORD")
+    a("  JZ dl_l_end")
+    a("  PUSH_CONST_1")
+    a("  NATIVE 1, 0, @GRAPHICS::SET_SCRIPT_GFX_DRAW_ORDER")
+    a("  PUSH_CONST_1")
+    a("  NATIVE 1, 0, @GRAPHICS::SET_SCRIPT_GFX_DRAW_BEHIND_PAUSEMENU")
+    a("  PUSH_CONST_0")
+    a("  NATIVE 1, 0, @HUD::SET_TEXT_FONT")
+    a("  PUSH_CONST_F 0.3")
+    a("  PUSH_CONST_F 0.3")
+    a("  NATIVE 2, 0, @HUD::SET_TEXT_SCALE")
+    for off in (12, 16, 20):
+        field(off)
+    a("  LOCAL_U8_LOAD 5")
+    a("  NATIVE 4, 0, @HUD::SET_TEXT_COLOUR")
+    a("  PUSH_CONST_1")
+    a("  NATIVE 1, 0, @HUD::SET_TEXT_CENTRE")
+    a("  NATIVE 0, 0, @HUD::SET_TEXT_OUTLINE")
+    a(f"  PUSH_CONST_U24 0x{DATA:X}")
+    a("  STRING")
+    a("  NATIVE 1, 0, @HUD::BEGIN_TEXT_COMMAND_DISPLAY_TEXT")
+    a("  LOCAL_U8_LOAD 0")
+    a(f"  IADD_U8 {LTEXT}")
+    a("  STRING")
+    a("  NATIVE 1, 0, @HUD::ADD_TEXT_COMPONENT_SUBSTRING_PLAYER_NAME")
+    a("  LOCAL_U8_LOAD 3")
+    a("  LOCAL_U8_LOAD 4")
+    a("  PUSH_CONST_0")
+    a("  NATIVE 3, 0, @HUD::END_TEXT_COMMAND_DISPLAY_TEXT")
+    a("  PUSH_CONST_4")
+    a("  NATIVE 1, 0, @GRAPHICS::SET_SCRIPT_GFX_DRAW_ORDER")
+    a("  PUSH_CONST_0")
+    a("  NATIVE 1, 0, @GRAPHICS::SET_SCRIPT_GFX_DRAW_BEHIND_PAUSEMENU")
+    a("dl_l_end:")
+    a("  LEAVE 1, 0")
 
     # ---- dl_quad: two triangles, each in both windings (DRAW_POLY is one sided) ----
     a("dl_quad:")
