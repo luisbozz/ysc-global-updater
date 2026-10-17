@@ -19,6 +19,7 @@ from scrasm.asm import assemble_text, _tokenize, _size
 from scrasm.disasm import disassemble
 import datafile
 import drawer
+import respawn
 import saveresult
 import teleport
 import mover
@@ -148,7 +149,11 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
                 asm += "\n" + saveresult.gen(nat)
             test = teleport.test_site(full.code) if s in teleport.TEST_SCRIPTS else None
             if test:
-                asm += "\n" + teleport.gen_test(test)
+                # The resurrect native has to be in the script's native table.
+                rs = respawn.NATIVE in nat and s in respawn.CONTROLLERS
+                asm += "\n" + teleport.gen_test(test, rs)
+                if rs:
+                    asm += "\n" + respawn.gen(s)
             try:
                 zone = zonelabel.site(full)
             except ValueError as e:

@@ -53,9 +53,11 @@ def test_site(code: bytes) -> dict | None:
     return None
 
 
-def gen_test(site: dict) -> str:
-    """tw_wrap: tp_main, then what the hooked site did."""
+def gen_test(site: dict, respawn: bool = False) -> str:
+    """tw_wrap: tp_main (and rs_main, respawn.py), then what the hooked site did."""
     o = ["tw_wrap:", "  ENTER 0, 2", "  CALL tp_main"]
+    if respawn:
+        o.append("  CALL rs_main")
     if "call" in site:
         o.append(f"  CALL 0x{site['call']:06X}")
     else:
