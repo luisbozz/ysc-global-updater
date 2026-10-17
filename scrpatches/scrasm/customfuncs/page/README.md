@@ -20,7 +20,8 @@ Files:
   page (string page 63) instead of custom globals: variable n at `0xFC018 + n * 8`, numbered like
   the old `Global_2884084 + n` (layout in `drawer.py`).
 - `drawer.py`: generates the shape drawer (dl_hook, dl_main, dl_quad, dl_entry, dl_label) that
-  `build_page.py` appends to every payload: 31 shapes, then up to 80 compact labels (entity numbers). Its labels draw in graphics order 1 behind the pause menu.
+  `build_page.py` appends to every payload: 128 shapes, then up to 640 compact labels (entity numbers),
+  both in the 64 KB drawer space Xenvious allocates in the game process (string pages 59 to 62). Its labels draw in graphics order 1 behind the pause menu.
 - `zonelabel.py`: generates zl_wrap/zl_label for the creators that draw zones (LTS, Capture, DM,
   Race): "(Zone n)  <type>" over each zone the game draws, in the zone's colour, fading with
   distance. The hook "zone labels" points the zone loop's draw CALL at zl_wrap.
