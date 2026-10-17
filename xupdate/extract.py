@@ -2,11 +2,13 @@
 
 - prop_lists.json, the prop model lists (boosters, blacklisted props, ...): from the
   decompiled creator scripts (tools/extract_prop_lists.py); capture_object_models, the models a
-  capture object keeps on load (tools/extract_capture_models.py).
+  capture object keeps on load (tools/extract_capture_models.py); weapon_pickup_models, the
+  pickup types a weapon keeps on load (tools/extract_pickup_models.py).
 - race_vehicles.json: the race creator's vehicle classes incl. the DLC (ADLC) vehicles
   (tools/extract_race_vehicles.py). A vehicle without a known name is a review item.
 - mprops.json: the original prop-menu models per creator (tools/mprops_originals.py).
 - rule_fields.json: what moves with a rule (tools/extract_rule_fields.py).
+- rule_options.json: bit numbers of the Rules page's yes/no options (tools/extract_rule_options.py).
 - [ENTITYHANDLES] in offsets.ini: where each creator keeps the handles of its placed entities
   (tools/extract_entity_handles.py), written straight into the work offsets.ini.
 
@@ -36,21 +38,24 @@ def prop_lists(new_build: str, edition: str, work: Path, offline: Path):
         return {}, [Item(id="list:prop_lists", kind="info", title="prop_lists.json",
                          question=f"Prop-Listen nicht gelesen: {e}", note="Die alte Datei bleibt.")], []
     items = []
-    # The models a capture object keeps when the Capture Creator loads the job.
+    # Models the creators keep when they load a job; anything else they replace.
     from tools.extract_capture_models import capture_models
-    key = "capture_object_models"
-    try:
-        lists[key] = capture_models(SCRIPTS / new_build)
-    except (FileNotFoundError, ValueError) as e:
-        if key in current:
-            lists[key] = current[key]
-        items.append(Item(id=f"list:{key}", kind="info", title=key,
-                          question=f"Liste nicht gelesen: {e}", note="Die alte Liste bleibt."))
+    from tools.extract_pickup_models import pickup_models
+    read = {"capture_object_models": capture_models, "weapon_pickup_models": pickup_models}
+    for key, extract in read.items():
+        try:
+            lists[key] = extract(SCRIPTS / new_build)
+        except (FileNotFoundError, ValueError) as e:
+            if key in current:
+                lists[key] = current[key]
+            items.append(Item(id=f"list:{key}", kind="info", title=key,
+                              question=f"Liste nicht gelesen: {e}", note="Die alte Liste bleibt."))
     out.write_text(dump(lists), encoding="utf-8")
     lines = []
-    if key in lists and lists[key] != current.get(key):
-        old, new = set(current.get(key, [])), set(lists[key])
-        lines.append(f"{key}: +{len(new - old)} -{len(old - new)} (jetzt {len(new)})")
+    for key in read:
+        if key in lists and lists[key] != current.get(key):
+            old, new = set(current.get(key, [])), set(lists[key])
+            lines.append(f"{key}: +{len(new - old)} -{len(old - new)} (jetzt {len(new)})")
     for key, n_now, n_found, added, kept, fixed in rows:
         if n_now is None:
             lines.append(f"{key}: fehlt in prop_lists.json")
@@ -132,7 +137,26 @@ def rule_fields(new_build: str, edition: str, work: Path, offline: Path):
     return {"rule_fields.json": out}, items, [line]
 
 
-EXTRACTORS = [prop_lists, race_vehicles, mprops, rule_fields]
+def rule_options(new_build: str, edition: str, work: Path, offline: Path):
+    """rule_options.json: bit numbers of the Rules page's yes/no options (tools/extract_rule_options.py)."""
+    out = work / "rule_options.json"
+    from tools.extract_rule_options import missing, rule_options as extract
+    try:
+        res = extract(SCRIPTS / new_build)
+    except (FileNotFoundError, ValueError) as e:
+        return {}, [Item(id="list:rule_options", kind="info", title="rule_options.json",
+                         question=f"Rule-Optionen nicht gelesen: {e}", note="Die alte Datei bleibt.")], []
+    out.write_text(json.dumps(res, indent=1) + "\n", encoding="utf-8")
+    items = []
+    gone = missing(res)
+    if gone:
+        items.append(Item(id="list:rule_options:missing", kind="info", title="rule_options.json",
+                          question="Diese Optionen gibt es in diesem Build nicht, Xenvious blendet sie aus: "
+                                   + ", ".join("PMCT_" + g for g in gone)))
+    return {"rule_options.json": out}, items, [f"rule_options.json: {len(res)} Optionen"]
+
+
+EXTRACTORS = [prop_lists, race_vehicles, mprops, rule_fields, rule_options]
 
 
 def entity_handles(new_build: str, work: Path, name: str = "offsets.ini"):
