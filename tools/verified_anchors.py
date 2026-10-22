@@ -120,6 +120,15 @@ _ANCHORS: dict[str, tuple[re.Pattern, str]] = {
         ),
         "Global_4718592.f_{0}",
     ),
+    # skyswoop_stage: the stage of the sky camera between modes (0 none, 1 going up,
+    # 2 up, 3/4 coming down). Every creator, the hub and the launcher share the
+    # setter that clears another global when the stage goes back to 0.
+    "OFFSET_skyswoop_stage": (
+        re.compile(
+            r"if \(iParam0 == 0\)\s*\{?\s*Global_\d+ = 0;\s*\}?\s*Global_(\d+)\.f_(\d+) = iParam0;"
+        ),
+        "Global_{0}.f_{1}",
+    ),
 }
 
 
