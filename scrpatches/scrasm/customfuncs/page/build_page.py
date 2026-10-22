@@ -23,6 +23,7 @@ import respawn
 import ruleticker
 import saveresult
 import teleport
+import ugclist
 import mover
 import zonelabel
 
@@ -141,11 +142,12 @@ def build(edition: str, build_name: str, patches: list, src_dir: Path = None, ro
                 keep = loop_hook_keep(full.code)
             probe = s in datafile.SCRIPTS
             asm = src + "\n" + drawer.gen(None if s in OWN_HOOK else base, keep,
-                                          ("df_main", "tp_main", "mv_main") if probe else ("tp_main", "mv_main"))
+                                          ("df_main", "tp_main", "mv_main", "ul_main") if probe else ("tp_main", "mv_main", "ul_main"))
             if probe:
                 asm += "\n" + datafile.gen()
             asm += "\n" + teleport.gen()
             asm += "\n" + mover.gen()
+            asm += "\n" + ugclist.gen()
             if s in saveresult.SCRIPTS:
                 asm += "\n" + saveresult.gen(nat)
             test = teleport.test_site(full.code) if s in teleport.TEST_SCRIPTS else None
